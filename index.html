@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#142328">
 <title>沒預料到我今天渡劫</title>
-<link rel="stylesheet" href="./style.css?v=3">
+<link rel="stylesheet" href="./style.css?v=5">
 </head>
 <body>
 <main id="game" aria-label="沒預料到我今天渡劫">
@@ -23,6 +23,7 @@
 <button id="sound" aria-label="切換音效" aria-pressed="true">音效開</button>
 <div id="notice" aria-live="polite"></div>
 <div id="caption"></div>
+<div id="panic" hidden></div>
 <div id="joystick" hidden><div id="stick"></div></div>
 <div id="flash"></div>
 <section id="overlay">
@@ -41,7 +42,7 @@
 </section>
 </main>
 <script type="module">
-import('./game.js?v=4').catch(error => {
+import('./game.js?v=5').catch(error => {
   console.error(error)
   document.querySelector('#description').textContent = '無法載入 3D 場景。請確認瀏覽器支援 WebGL，並重新整理。'
   document.querySelector('#start').textContent = '載入失敗'

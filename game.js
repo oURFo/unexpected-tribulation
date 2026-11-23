@@ -1,9 +1,9 @@
 import * as T from './vendor/three.module.min.js'
-import {RADIUS, REALMS, TYPES, Trial, goal, MAX_LEVEL, STAGE_DURATION} from './rules.js?v=4'
+import {RADIUS, REALMS, TYPES, Trial, goal, MAX_LEVEL, STAGE_DURATION} from './rules.js?v=5'
 import {drawEnding, endings} from './endings.js?v=3'
 
 const $ = id => document.getElementById(id)
-const ui = Object.fromEntries(['world','hud','phase','realm','hp','life','xp','level','experience','stageTime','next','charges','chargeTime','overlay','start','eyebrow','title','description','ending','endingArt','endingTitle','results','controls','notice','caption','joystick','stick','flash','sound'].map(id => [id,$(id)]))
+const ui = Object.fromEntries(['world','hud','phase','realm','hp','life','xp','level','experience','stageTime','next','charges','chargeTime','overlay','start','eyebrow','title','description','ending','endingArt','endingTitle','results','controls','notice','caption','panic','joystick','stick','flash','sound'].map(id => [id,$(id)]))
 const clamp = T.MathUtils.clamp
 const tau = Math.PI * 2
 const colors = [0xfff2c9, 0x81ffa7, 0x66c8ff]
@@ -182,21 +182,26 @@ shadow.rotation.x=-Math.PI/2
 scene.add(shadow)
 const robe=place(puppet,solid(new T.CylinderGeometry(.32,.59,1.04,7),0x307773),0,.89,0)
 const belt=place(puppet,solid(new T.CylinderGeometry(.415,.46,.15,7),0xe3ba70),0,.79,0)
-const head=place(puppet,solid(new T.IcosahedronGeometry(.46,1),0xffce97),0,1.66,.02)
-const hat=place(puppet,solid(new T.CylinderGeometry(.29,.43,.27,7),0x233343),0,1.99,0)
-place(puppet,solid(new T.CylinderGeometry(.07,.15,.13,6),0x263747),0,2.19,-.03)
+const face = new T.Group()
+puppet.add(face)
+place(face,solid(new T.IcosahedronGeometry(.46,1),0xffce97),0,1.66,.02)
+const hat=place(face,solid(new T.CylinderGeometry(.29,.43,.27,7),0x233343),0,1.99,0)
+const knot=place(face,solid(new T.CylinderGeometry(.07,.15,.13,6),0x263747),0,2.19,-.03)
 const feet = [-.22,.22].map(x=>place(puppet,solid(new T.BoxGeometry(.27,.26,.40),0x273843),x,.22,.08))
 const sleeves = [-.48,.48].map(x=>{
   const sleeve=place(puppet,solid(new T.CapsuleGeometry(.17,.42,3,7),0x478b82),x,1.01,.05)
   sleeve.rotation.z=Math.sign(x)*.25
   return sleeve
 })
+const eyes=[]
 for(const x of [-.14,.14]){
-  place(puppet,solid(new T.SphereGeometry(.046,6,5),0x2d2b30),x,1.70,.43)
-  const eyebrow=place(puppet,solid(new T.BoxGeometry(.13,.024,.026),0x42322b),x,1.79,.414)
+  eyes.push(place(face,solid(new T.SphereGeometry(.046,6,5),0x2d2b30),x,1.70,.43))
+  const eyebrow=place(face,solid(new T.BoxGeometry(.13,.024,.026),0x42322b),x,1.79,.414)
   eyebrow.rotation.z=Math.sign(x)*.16
 }
-place(puppet,solid(new T.ConeGeometry(.13,.27,6),0x40444a),0,1.38,.34).rotation.z=Math.PI
+place(face,solid(new T.ConeGeometry(.13,.27,6),0x40444a),0,1.38,.34).rotation.z=Math.PI
+const mouth=place(face,solid(new T.SphereGeometry(1,10,8),0x462a2c),0,1.54,.43)
+const sweat=place(face,new T.Mesh(new T.IcosahedronGeometry(.10,0),new T.MeshBasicMaterial({color:0xb9ecff})),.45,1.83,.39)
 const faceColors=[]
 puppet.traverse(obj=>{if(obj.isMesh)faceColors.push([obj.material,obj.material.color.clone()])})
 const aura = flatRing(.73,.85,0x8fffd2,.7)
@@ -235,7 +240,7 @@ orbHalo.frustumCulled=false
 orbHalo.instanceMatrix.setUsage(T.DynamicDrawUsage)
 scene.add(orbHalo)
 const rings=instances(new T.RingGeometry(.94,1,64),64)
-const pools=instances(new T.CircleGeometry(1,40),20)
+const pools=instances(new T.CircleGeometry(1,40),40)
 pools.material.transparent=true
 pools.material.opacity=.24
 pools.material.depthWrite=false
@@ -266,6 +271,10 @@ let soundContext
 let nextGather=0
 let lastWarning=-1
 let lastChime=-1
+let lastThunder=-1
+let chatterUntil=0
+let nextChatter=0
+let lastLine=-1
 const keys=new Set()
 let movePointer=null
 const touchMoves=new Map()
@@ -317,6 +326,55 @@ function sound(type,variant=0){
   })
 }
 
+const panicLines = [
+  '啊啊啊啊！', '我還穿著睡褲！', '師父！你有繳電費嗎？',
+  '鞋！我的鞋！算了跑！', '先說好，我沒報名！', '我只是翻了個身啊！',
+  '天道大哥，能改期嗎？', '別追了，我沒有糖！', '啊這邊也有！',
+  '我還沒刷牙！', '道友，借我躲一下！', '誰把避雷針拔了？',
+]
+
+function yelp(variant) {
+  if (!soundOn || soundContext?.state !== 'running') return
+  const ctx=soundContext
+  const start=ctx.currentTime
+  const duration=.29+(variant%3)*.025
+  const voice=ctx.createOscillator()
+  const vibrato=ctx.createOscillator()
+  const wobble=ctx.createGain()
+  const resonance=ctx.createBiquadFilter()
+  const volume=ctx.createGain()
+  const pitch=290+(variant%5)*26
+  voice.type='sawtooth'
+  voice.frequency.setValueAtTime(pitch,start)
+  voice.frequency.exponentialRampToValueAtTime(pitch*1.65,start+.065)
+  voice.frequency.exponentialRampToValueAtTime(pitch*.76,start+duration)
+  vibrato.frequency.value=21
+  wobble.gain.value=24
+  vibrato.connect(wobble).connect(voice.frequency)
+  resonance.type='bandpass'
+  resonance.frequency.value=960+(variant%3)*160
+  resonance.Q.value=1.2
+  volume.gain.setValueAtTime(.001,start)
+  volume.gain.exponentialRampToValueAtTime(.16,start+.055)
+  volume.gain.exponentialRampToValueAtTime(.001,start+duration)
+  voice.connect(resonance).connect(volume).connect(ctx.destination)
+  voice.start(start)
+  vibrato.start(start)
+  voice.stop(start+duration)
+  vibrato.stop(start+duration)
+}
+
+function panic(line) {
+  if (line===undefined) {
+    line=(lastLine+1+Math.floor(rng()*(panicLines.length-1)))%panicLines.length
+  }
+  lastLine=line
+  ui.panic.textContent=panicLines[line]
+  chatterUntil=now+1.28
+  nextChatter=now+2.6+rng()*1.7
+  yelp(line)
+}
+
 function setNotice(main,detail=''){
   const key=main+'|'+detail
   if(key===noticeKey)return
@@ -343,13 +401,18 @@ function consumeEvents(){
       flare=.8
       shake=.8
       sound('wake')
+      panic(0)
+      nextChatter=now+1.9
     } else if(event.type==='warning'&&now-lastWarning>.15){
       sound('warning')
       lastWarning=now
     } else if(event.type==='strike'){
       strikes.push({bolt:event.bolt,time:now,seed:rng()*20})
       flare=Math.max(flare,event.bolt.kind===2?.13:.22)
-      sound('strike')
+      if(now-lastThunder>.11){
+        sound('strike')
+        lastThunder=now
+      }
     } else if(event.type==='hurt'){
       scorch=.62
       shake=.3
@@ -368,6 +431,7 @@ function consumeEvents(){
     } else if(event.type==='dead'||event.type==='escaped'){
       strikes.length=0
       clearInput()
+      chatterUntil=0
       endTimer=1.5
       if(event.type==='dead')scorch=2
     }
@@ -384,7 +448,9 @@ function start(){
   smoke.length=strikes.length=0
   labels.splice(0).forEach(label=>label.element.remove())
   flare=scorch=endTimer=0
-  collectedAt=nextGather=nextTrail=0
+  collectedAt=nextGather=nextTrail=nextChatter=chatterUntil=0
+  lastLine=-1
+  ui.panic.hidden=true
   stormAmount=.18
   ui.overlay.hidden=true
   ui.ending.hidden=true
@@ -473,7 +539,7 @@ function hud(){
 
 const darkSky = new T.Color(0x4f626c)
 const clearSky = new T.Color(0xb1bc9d)
-function draw(dt){
+function draw(dt, moveAmount){
   const {x,z,phase,remaining}=trial
   const asleep = phase==='title'||(phase==='intro'&&remaining>1.75)
   const excited = phase==='intro'&&!asleep
@@ -498,19 +564,37 @@ function draw(dt){
   const ending=phase==='dead'||phase==='escaped'
   const escape=phase==='escaped'?Math.max(0,1.5-endTimer):0
   avatar.position.set(x+trial.dx*escape*1.15,asleep?.46:trial.meditating?.16+.09*Math.sin(now*4):0,z+trial.dz*escape*1.15)
+  const running = (phase==='trial'||phase==='rest') && moveAmount>.08 && !trial.dash
+  const flailing = running || (phase==='escaped'&&endTimer>0)
+  const stride = now*22
+  const startled = excited || flailing
   avatar.rotation.y=Math.atan2(trial.dx,trial.dz)
-  puppet.rotation.set(asleep?-1.45:excited?-.18:phase==='escaped'?.45:0,0,phase==='escaped'?.16*Math.sin(now*18):0)
-  puppet.position.y=excited?Math.max(0,.65*Math.sin((1.75-remaining)*6)):escape*.12*Math.abs(Math.sin(now*17))
-  puppet.scale.setScalar(alive?1:clamp(endTimer/.85,0,1))
+  puppet.rotation.set(asleep?-1.45:excited?-.18:flailing?.23:0,0,flailing?.18*Math.sin(stride*.68):0)
+  puppet.position.y=excited?Math.max(0,.65*Math.sin((1.75-remaining)*6)):flailing?.15*Math.abs(Math.sin(stride)):0
+  face.rotation.y=flailing?.35*Math.sin(stride*.34):0
+  face.rotation.z=flailing?.13*Math.cos(stride*.9):0
+  hat.rotation.z=knot.rotation.z=flailing?.23*Math.sin(stride-.8):0
+  knot.position.x=flailing?-.2*hat.rotation.z:0
+  mouth.scale.set(.09,startled?.12:.026,.04)
+  eyes.forEach(eye=>eye.scale.set(1,asleep?.25:startled?1.48:1,1))
+  sweat.visible=startled
+  sweat.position.y=1.83+.13*Math.sin(stride)
+  if(running&&phase==='trial'&&now>=nextChatter)panic()
+  puppet.scale.setScalar(1.14*(alive?1:clamp(endTimer/.85,0,1)))
   avatar.visible=alive||endTimer>0
   faceColors.forEach(([material,color])=>material.color.copy(color).multiplyScalar(scorch>0?.19:1))
-  const walking=trial.idle===0&&!asleep
   feet.forEach((foot,i)=>{
-    foot.position.z=trial.meditating?.30:.08+(walking?.23*Math.sin(now*16+i*Math.PI):0)
-    foot.position.y=trial.meditating?.40:.22
-    foot.rotation.y=trial.meditating?(i===0?.8:-.8):0
+    const swing=Math.sin(stride+i*Math.PI)
+    foot.position.z=trial.meditating?.30:.08+(flailing?.38*swing:0)
+    foot.position.y=trial.meditating?.40:.22+(flailing?.38*Math.max(swing,0):0)
+    foot.rotation.y=(i===0?1:-1)*(trial.meditating?.8:flailing?.29:0)
+    foot.rotation.x=flailing?.6*swing:0
   })
-  sleeves.forEach((s,i)=>s.rotation.x=trial.meditating?-.9:walking?.48*Math.sin(now*16+i*Math.PI):0)
+  sleeves.forEach((s,i)=>{
+    const side=i===0?-1:1
+    s.rotation.x=trial.meditating?-.9:flailing?-.55+.76*Math.sin(stride*.82+i*2.8):0
+    s.rotation.z=side*(startled?1.04+.42*Math.sin(stride+i*1.5):.25)
+  })
   robe.position.y=trial.meditating?.72:.89
   belt.position.y=trial.meditating?.64:.79
   shadow.visible=avatar.visible
@@ -587,6 +671,14 @@ function draw(dt){
   camera.position.set(target.x+shake*Math.sin(now*93)*.6,offset*.81,target.z+offset*.64)
   camera.lookAt(target)
   camera.updateMatrixWorld()
+  ui.panic.hidden=now>=chatterUntil
+  if(!ui.panic.hidden){
+    projected.set(avatar.position.x,3.5+puppet.position.y,avatar.position.z).project(camera)
+    const screenX=clamp((projected.x+1)*innerWidth/2,96,innerWidth-96)
+    const screenY=Math.max(116,(1-projected.y)*innerHeight/2)
+    ui.panic.style.transform='translate('+screenX+'px,'+screenY+'px) translate(-50%, -100%)'
+    ui.panic.style.opacity=Math.min(1,(chatterUntil-now)*5)
+  }
   for(let i=labels.length-1;i>=0;i--){
     const label=labels[i]
     const age=now-label.time
@@ -702,5 +794,5 @@ renderer.setAnimationLoop(time=>{
   }
   consumeEvents()
   hud()
-  draw(dt)
+  draw(dt,Math.hypot(dx,dz))
 })

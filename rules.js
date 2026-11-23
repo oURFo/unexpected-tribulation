@@ -9,21 +9,21 @@ const LEVEL_HP = 10
 const HEAL_HP = 10
 const MEDITATION_STAGGER = .65
 export const REALMS = [
-  ['煉氣期', 2.10, 1.50, 1.50, 1.75],
-  ['築基期', 2.00, 1.46, 1.42, 1.70],
-  ['金丹期', 1.90, 1.42, 1.34, 1.65],
-  ['元嬰期', 1.80, 1.38, 1.26, 1.60],
-  ['化神期', 1.70, 1.34, 1.18, 1.55, 6.5, 1.70],
-  ['煉虛期', 1.60, 1.30, 1.10, 1.50, 6.1, 1.65],
-  ['合體期', 1.52, 1.26, 1.02, 1.45, 5.7, 1.60],
+  ['煉氣期', 3.20, 1.50, 1.50, 1.75],
+  ['築基期', 3.00, 1.46, 1.42, 1.70],
+  ['金丹期', 2.75, 1.42, 1.34, 1.65],
+  ['元嬰期', 2.50, 1.38, 1.26, 1.60],
+  ['化神期', 2.25, 1.34, 1.18, 1.55, 6.5, 1.70],
+  ['煉虛期', 2.00, 1.30, 1.10, 1.50, 6.1, 1.65],
+  ['合體期', 1.72, 1.26, 1.02, 1.45, 5.7, 1.60],
   ['大乘期', 1.44, 1.22, 0.94, 1.40, 5.3, 1.55],
   ['渡劫期', 1.36, 1.18, 0.86, 1.35, 4.9, 1.50],
   ['散仙',   1.28, 1.14, 0.78, 1.30, 4.5, 1.45],
   ['地仙',   1.20, 1.10, 0.72, 1.25, 4.1, 1.40],
-  ['天仙',   1.12, 1.06, 0.66, 1.20, 3.7, 1.35],
-  ['金仙',   1.04, 1.02, 0.60, 1.15, 3.3, 1.30],
-  ['太乙金仙', 0.96, 0.98, 0.54, 1.10, 2.9, 1.25],
-  ['大羅金仙', 0.88, 0.94, 0.48, 1.05, 2.5, 1.20],
+  ['天仙',   1.12, 1.06, 0.70, 1.20, 3.7, 1.35],
+  ['金仙',   1.04, 1.02, 0.68, 1.15, 3.3, 1.30],
+  ['太乙金仙', 0.96, 0.98, 0.66, 1.10, 2.9, 1.25],
+  ['大羅金仙', 0.88, 0.94, 0.64, 1.05, 2.5, 1.20],
 ]
 export const TYPES = [
   { radius: 2.2, damage: 32, growth: 3, color: 0xffce58 },
@@ -101,14 +101,46 @@ export class Trial {
     this.events.push({type:this.phase})
   }
 
+  randomWave() {
+    const count = this.stage >= 8 ? 4 : this.stage >= 3 ? 3 : 2
+    const positions = []
+    for (let i = 0; i < count; i++) {
+      for (let attempt = 0; attempt < 12; attempt++) {
+        // One nearby bolt keeps a stationary player at risk. The others cover the arena.
+        const nearby = i === 0 && attempt < 6
+        const [dx, zOffset] = pointInRing(0, nearby ? 4.8 : RADIUS, this.random)
+        const x = (nearby ? this.x : 0) + dx
+        const z = (nearby ? this.z : 0) + zOffset
+        if (Math.hypot(x, z) > RADIUS) continue
+        if (positions.some(([px, pz]) => Math.hypot(x - px, z - pz) < 4)) continue
+        positions.push([x, z])
+        break
+      }
+      if (positions.length <= i) {
+        // Fall back to well-separated points if the random samples all overlap.
+        for (let slot = 0; slot < 12; slot++) {
+          const angle = slot * Math.PI / 6
+          const x = Math.cos(angle) * 15
+          const z = Math.sin(angle) * 15
+          if (positions.some(([px, pz]) => Math.hypot(x - px, z - pz) < 4)) continue
+          positions.push([x, z])
+          break
+        }
+      }
+    }
+    return positions
+  }
+
   strikes(dt, immune) {
     const row = REALMS[this.stage]
     this.timers.forEach((seconds, i) => {
       this.timers[i] -= dt
       if (seconds > dt) return
       this.timers[i] += row[1 + i * 2]
-      const [x,z] = i === 1 ? pointInRing(0, RADIUS, this.random) : [this.x,this.z]
-      this.bolts.push({x,z,kind:i, warning:row[2 + i * 2], age:0, ticks:0})
+      const positions = i === 1 ? this.randomWave() : [[this.x, this.z]]
+      for (const [x, z] of positions) {
+        this.bolts.push({x,z,kind:i, warning:row[2 + i * 2], age:0, ticks:0})
+      }
       this.events.push({type:'warning'})
     })
     for (const bolt of this.bolts) {
