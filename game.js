@@ -1,9 +1,10 @@
 import * as T from './vendor/three.module.min.js'
-import {RADIUS, REALMS, TYPES, Trial, goal, MAX_LEVEL, STAGE_DURATION, SHIVER_LEVEL, SHIVER_DURATION} from './rules.js?v=8'
+import {RADIUS, REALMS, TYPES, Trial, goal, MAX_LEVEL, STAGE_DURATION, SHIVER_LEVEL, SHIVER_DURATION} from './rules.js?v=10'
 import {endings} from './endings.js?v=9'
+import {spectators} from './spectators.js?v=10'
 
 const $ = id => document.getElementById(id)
-const ui = Object.fromEntries(['world','tutorial','lessonStep','lessonTitle','lessonHint','orbLesson','skipLesson','beginTrial','replayLesson','hud','phase','realm','hp','life','xp','level','experience','stageTime','next','charges','chargeTime','shiverStatus','overlay','start','eyebrow','title','description','ending','endingArt','endingTitle','results','controls','notice','caption','panic','joystick','stick','flash','sound'].map(id => [id,$(id)]))
+const ui = Object.fromEntries(['world','tutorial','lessonStep','lessonTitle','lessonHint','exitLesson','orbLesson','skipLesson','beginTrial','replayLesson','hud','phase','realm','hp','life','xp','level','experience','stageTime','next','charges','chargeTime','shiverStatus','overlay','start','eyebrow','title','description','ending','endingArt','endingTitle','results','controls','notice','caption','panic','npcTalk','npcName','npcLine','skillIntro','shiverBuff','joystick','stick','flash','sound'].map(id => [id,$(id)]))
 const clamp = T.MathUtils.clamp
 const tau = Math.PI * 2
 const colors = [0xfff2c9, 0x81ffa7, 0x66c8ff]
@@ -15,7 +16,7 @@ const lessons = [
   ['先動起來', '用 W、A、S、D 走幾步。', '拖動左下角的搖桿，走幾步試試。'],
   ['停下打坐', '放開移動鍵，等白、綠、藍三顆球飛入體內。球入體才有收益。', '放開搖桿，等白、綠、藍三顆球飛入體內。球入體才有收益。'],
   ['用閃身步躲雷', '按空白鍵，朝角色面向閃身。閃身途中免疫雷擊，次數會慢慢補回。', '用手指在搖桿以外的場地滑一下，角色會朝滑動方向閃身。閃身途中免疫雷擊。'],
-  ['準備好了，天雷來了！', '看到地上縮小的雷圈就離開。撐不住就跑出大陣結算。'],
+  ['準備好了，天雷來了！', '注意逐漸縮小的地面雷圈，落雷前跑出警示範圍。'],
 ]
 let lesson = 0
 let shownLesson = -1
@@ -220,6 +221,104 @@ const aura = flatRing(.73,.85,0x8fffd2,.7)
 scene.add(aura)
 const shiverAura=flatRing(.95,1.12,0x92fbff,.84)
 scene.add(shiverAura)
+
+// One reusable spectator rig with two mounts.
+const flyer = new T.Group()
+flyer.visible=false
+scene.add(flyer)
+const swordMount = new T.Group()
+const craneMount = new T.Group()
+flyer.add(swordMount,craneMount)
+const blade=place(swordMount,solid(new T.BoxGeometry(.42,.10,2.7),0xa4d9ef),0,0,.12)
+blade.rotation.y=.02
+const point=place(swordMount,solid(new T.ConeGeometry(.30,.86,4),0xd6f4ff),0,0,1.86)
+point.rotation.x=Math.PI/2
+point.scale.z=.26
+place(swordMount,solid(new T.BoxGeometry(1.1,.16,.20),0xd3ac58),0,0,-1.12)
+place(swordMount,solid(new T.BoxGeometry(.20,.16,.6),0x4e645a),0,0,-1.43)
+
+const craneBody=place(craneMount,solid(new T.IcosahedronGeometry(.7,1),0xf0eee4),0,.05,0)
+craneBody.scale.set(.83,.58,1.48)
+const neck=place(craneMount,solid(new T.CapsuleGeometry(.13,.8,3,8),0xf9f4e5),0,.36,.72)
+neck.rotation.x=.52
+const craneHead=place(craneMount,solid(new T.IcosahedronGeometry(.22,1),0xf1eee1),0,.78,.98)
+place(craneHead,solid(new T.SphereGeometry(.092,8,6),0xd75452),0,.17,.03)
+const beak=place(craneMount,solid(new T.ConeGeometry(.105,.52,6),0xd5a54e),0,.74,1.39)
+beak.rotation.x=Math.PI/2
+const wings=[-1,1].map(side=>{
+  const wing=new T.Group()
+  place(craneMount,wing,side*.37,.10,0)
+  const feather=place(wing,solid(new T.IcosahedronGeometry(1,0),0xf7f0e1),side*.92,0,-.06)
+  feather.scale.set(1.25,.18,.64)
+  const tip=place(wing,solid(new T.IcosahedronGeometry(1,0),0x263541),side*1.76,0,-.17)
+  tip.scale.set(.63,.11,.35)
+  return wing
+})
+
+const rider=new T.Group()
+place(flyer,rider,0,.12,-.15)
+const riderRobe=place(rider,solid(new T.CylinderGeometry(.26,.48,.68,7),0x7a627b),0,.47,0)
+place(rider,solid(new T.IcosahedronGeometry(.28,1),0xe8b183),0,1.02,.05)
+const riderHat=place(rider,solid(new T.ConeGeometry(.44,.34,8),0x263746),0,1.31,.02)
+for(const side of [-1,1]){
+  const arm=place(rider,solid(new T.CapsuleGeometry(.10,.40,3,6),0xb9a882),side*.31,.57,.08)
+  arm.rotation.z=side*.6
+}
+const riderColors=[0xa6616b,0x789e91,0x8883ae,0x4987a0,0xbaa35e,0xb27f59]
+let nextFlyby=0
+let flyby=null
+let spectatorQueue=[]
+
+function updateFlyby(){
+  const active=trial.phase==='trial'||trial.phase==='rest'
+  if(!active){
+    flyer.visible=false
+    ui.npcTalk.hidden=true
+    return
+  }
+  if(!flyby&&now>=nextFlyby){
+    if(!spectatorQueue.length){
+      spectatorQueue=spectators.map((_,index)=>index)
+      for(let i=spectatorQueue.length-1;i>0;i--){
+        const j=Math.floor(rng()*(i+1))
+        ;[spectatorQueue[i],spectatorQueue[j]]=[spectatorQueue[j],spectatorQueue[i]]
+      }
+    }
+    const index=spectatorQueue.pop()
+    const crane=index%2===0
+    flyby={start:now,index,direction:rng()>.5?1:-1,z:-9-rng()*5}
+    swordMount.visible=!crane
+    craneMount.visible=crane
+    rider.position.y=crane?.55:.12
+    riderRobe.material.color.setHex(riderColors[index%riderColors.length])
+    riderHat.scale.setScalar(1+(index%3)*.16)
+    ui.npcName.textContent=spectators[index][0]+' · '+(crane?'乘鶴':'御劍')
+    ui.npcLine.textContent=spectators[index][1]
+  }
+  const progress=flyby?(now-flyby.start)/7:1
+  if(progress>=1){
+    if(flyby){
+      flyby=null
+      nextFlyby=now+1.3+rng()*2
+    }
+    flyer.visible=false
+    ui.npcTalk.hidden=true
+    return
+  }
+  flyer.visible=true
+  flyer.position.set((progress*54-27)*flyby.direction,6+Math.sin(progress*Math.PI)*1.1+.28*Math.sin(now*3),flyby.z)
+  flyer.rotation.set(0,flyby.direction*Math.PI/2,.12*Math.sin(now*2.3))
+  wings.forEach((wing,i)=>wing.rotation.z=(i===0?-1:1)*(.15+Math.sin(now*9)*.65))
+  projected.set(flyer.position.x,flyer.position.y+1.7,flyer.position.z).project(camera)
+  const x=(projected.x+1)*innerWidth/2
+  const y=(1-projected.y)*innerHeight/2
+  ui.npcTalk.hidden=progress<.12||progress>.88||x<0||x>innerWidth||y<0||y>innerHeight
+  if(!ui.npcTalk.hidden){
+    const margin=Math.min(innerWidth/2,112)
+    ui.npcTalk.style.transform='translate('+clamp(x,margin,innerWidth-margin)+'px,'+Math.max(128,y-8)+'px) translate(-50%, -100%)'
+  }
+}
+
 
 function instances(geometry, capacity) {
   const mesh = new T.InstancedMesh(geometry,new T.MeshBasicMaterial(),capacity)
@@ -435,7 +534,8 @@ function consumeEvents(){
       sound('hurt')
       label(trial.x,trial.z,'⚡ −'+event.damage+' 氣血')
     } else if(event.type==='shiverUnlocked'){
-      label(event.x,event.z,'解鎖・狗熊哆嗦毛','skill-float',2)
+      clearInput()
+      ui.skillIntro.showModal()
       sound('breakthrough')
     } else if(event.type==='shiver'){
       label(event.x,event.z,'狗熊哆嗦毛！','skill-float',SHIVER_DURATION)
@@ -453,6 +553,13 @@ function consumeEvents(){
     } else if(event.type==='breakthrough'){
       strikes.length=0
       sound('breakthrough')
+    } else if(event.type==='victory'){
+      strikes.length=0
+      clearInput()
+      chatterUntil=0
+      setNotice('')
+      sound('breakthrough')
+      summary()
     } else if(event.type==='dead'||event.type==='escaped'){
       strikes.length=0
       clearInput()
@@ -479,6 +586,11 @@ function start(forceLesson=false){
   lastLine=-1
   lastEvade=-Infinity
   ui.panic.hidden=true
+  ui.npcTalk.hidden=true
+  ui.shiverBuff.hidden=true
+  flyby=null
+  nextFlyby=now+4
+  spectatorQueue=[]
   stormAmount=.18
   ui.overlay.hidden=true
   ui.ending.hidden=true
@@ -522,6 +634,7 @@ function updateLesson() {
   ui.lessonStep.textContent=lesson<3?'渡劫練習 '+(lesson+1)+' / 3':'練習完成'
   ui.lessonTitle.textContent=title
   ui.orbLesson.hidden=lesson===0
+  ui.exitLesson.hidden=lesson!==3
   ui.lessonHint.textContent=lessonTouch?touchHint:desktopHint
   ui.skipLesson.hidden=lesson===3
   ui.beginTrial.hidden=lesson!==3
@@ -529,11 +642,12 @@ function updateLesson() {
 
 function summary(){
   const died=trial.phase==='dead'
+  const won=trial.phase==='victory'
   ui.hud.hidden=true
   ui.joystick.hidden=true
   ui.overlay.hidden=false
-  ui.eyebrow.textContent=died?'渡劫失敗':'渡劫中止'
-  ui.title.textContent=died?'灰飛煙滅':'留得青山在'
+  ui.eyebrow.textContent=won?'渡劫成功':died?'渡劫失敗':'渡劫中止'
+  ui.title.textContent=won?'證道大羅金仙':died?'灰飛煙滅':'留得青山在'
   const [endingTitle, escapedLine, deathLine, motif, artwork] = endings[trial.stage]
   ui.endingTitle.textContent=endingTitle
   ui.description.textContent=died?deathLine:escapedLine
@@ -559,7 +673,7 @@ function summary(){
 }
 
 function hud(){
-  const {phase,stage,level,xp,hp,maxHp,charges,chargeTime,completed,remaining,age,shiverTime,shiverCooldown}=trial
+  const {phase,stage,level,xp,hp,maxHp,charges,chargeTime,remaining,age,shiverTime,shiverCooldown}=trial
   const active=phase==='trial'||phase==='rest'
   const practice=phase==='practice'
   ui.tutorial.hidden=!practice
@@ -569,7 +683,7 @@ function hud(){
   ui.joystick.hidden=!((active||practice)&&coarse.matches)
   const name=REALMS[stage][0]
   const next=REALMS[stage+1]?.[0]
-  const upcoming=next??'極限生存'
+  const upcoming=next??'大羅金仙'
   if(phase==='intro'){
     if(remaining>1.75)setNotice('呼……','山頂小睡，醒了再修仙。')
     else setNotice('沒預料到我今天渡劫！','大陣已開 · 躲開地上的雷圈')
@@ -589,13 +703,13 @@ function hud(){
   if(!active&&!ending)return
   const seconds = Math.max(0,Math.ceil(STAGE_DURATION-age-1e-7))
   const restSeconds = Math.ceil(remaining ?? 0)
-  const key=[phase,stage,level,xp,hp,charges,completed,seconds,restSeconds,Math.floor(chargeTime*10)].join('|')
+  const key=[phase,stage,level,xp,hp,charges,seconds,restSeconds,Math.floor(chargeTime*10)].join('|')
   if(key===hudKey)return
   hudKey=key
-  ui.phase.textContent=phase==='rest'?'已完成':completed?'極限生存':'當前境界'
+  ui.phase.textContent=phase==='rest'?'已完成':'當前境界'
   ui.realm.textContent=name
   const clock = [Math.floor(seconds/60),seconds%60].map(value=>String(value).padStart(2,'0')).join(':')
-  ui.stageTime.textContent=phase==='rest'?'休整 '+restSeconds+' 秒':completed?'極限生存':'剩餘 '+clock
+  ui.stageTime.textContent=phase==='rest'?'休整 '+restSeconds+' 秒':'剩餘 '+clock
   ui.hp.textContent=hp+' / '+maxHp
   ui.life.max=maxHp
   ui.life.value=hp
@@ -606,7 +720,7 @@ function hud(){
   ui.experience.textContent=maxLevel?'已滿級':xp+' / '+goal(level)+' EXP'
   ui.next.textContent=next
     ? (phase==='rest'?'即將開始 · ':'下一階 · ')+next+(stage===3?' · 解鎖連續雷':'')
-    : completed?'已完成最高境界':'最高境界'
+    : '最高境界'
   chargeNodes.forEach((node,i)=>{
     node.classList.toggle('empty',i>=charges)
     node.style.setProperty('--fill',(i<charges?100:i===charges?chargeTime*10:0)+'%')
@@ -642,7 +756,7 @@ function draw(dt, moveAmount){
   const escape=phase==='escaped'?Math.max(0,1.5-endTimer):0
   avatar.position.set(x+trial.dx*escape*1.15,asleep?.46:trial.meditating?.16+.09*Math.sin(now*4):0,z+trial.dz*escape*1.15)
   const shivering=trial.shiverTime>1e-7
-  const running = (phase==='trial'||phase==='rest'||phase==='practice') && moveAmount>.08 && !trial.dash && !shivering
+  const running = (phase==='trial'||phase==='rest'||phase==='practice') && moveAmount>.08 && !trial.dash
   const flailing = running || (phase==='escaped'&&endTimer>0)
   const stride = now*22
   const startled = excited || flailing || shivering
@@ -765,6 +879,12 @@ function draw(dt, moveAmount){
   camera.position.set(target.x+shake*Math.sin(now*93)*.6,offset*.81,target.z+offset*.64)
   camera.lookAt(target)
   camera.updateMatrixWorld()
+  updateFlyby()
+  ui.shiverBuff.hidden=!shivering
+  if(shivering){
+    projected.set(avatar.position.x,2.95+puppet.position.y,avatar.position.z).project(camera)
+    ui.shiverBuff.style.transform='translate('+((projected.x+1)*innerWidth/2)+'px,'+((1-projected.y)*innerHeight/2)+'px) translate(-50%, -100%)'
+  }
   ui.panic.hidden=now>=chatterUntil
   if(!ui.panic.hidden){
     projected.set(avatar.position.x,3.5+puppet.position.y,avatar.position.z).project(camera)
@@ -887,6 +1007,10 @@ ui.start.addEventListener('click',()=>start())
 ui.replayLesson.addEventListener('click',()=>start(true))
 ui.skipLesson.addEventListener('click',endLesson)
 ui.beginTrial.addEventListener('click',endLesson)
+ui.skillIntro.addEventListener('close',()=>{
+  clearInput()
+  trial.awaitingShiverIntro=false
+})
 ui.replayLesson.hidden=!lessonSeen
 ui.start.disabled=false
 ui.start.textContent='叫我起床'
@@ -897,7 +1021,10 @@ const frameStep=1/120
 renderer.setAnimationLoop(time=>{
   const dt=clamp((time-lastFrame)/1000,0,.05)
   lastFrame=time
-  if(document.hidden)return
+  if(document.hidden||ui.skillIntro.open){
+    accumulator=0
+    return
+  }
   now+=dt
   if(endTimer>0){
     endTimer=Math.max(0,endTimer-dt)
@@ -909,6 +1036,10 @@ renderer.setAnimationLoop(time=>{
   while(accumulator>=frameStep){
     trial.update(frameStep,dx,dz)
     accumulator-=frameStep
+    if(trial.awaitingShiverIntro){
+      accumulator=0
+      break
+    }
   }
   consumeEvents()
   hud()

@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#142328">
 <title>沒預料到我今天渡劫</title>
 <link rel="preload" as="image" href="./art/hero.webp">
-<link rel="stylesheet" href="./style.css?v=9">
+<link rel="stylesheet" href="./style.css?v=10">
 </head>
 <body>
 <main id="game" aria-label="沒預料到我今天渡劫">
@@ -16,6 +16,7 @@
 <small id="lessonStep"></small>
 <h2 id="lessonTitle"></h2>
 <p id="lessonHint"></p>
+<p id="exitLesson" hidden><strong>保命退場</strong>　整個角色走出金色大圓圈後，天雷立刻停止，安全進入結算。</p>
 <ul id="orbLesson" hidden>
 <li><i class="orb-dot white"></i><span><b>白球</b>　+10 EXP</span></li>
 <li><i class="orb-dot green"></i><span><b>綠球</b>　回復 10 氣血</span></li>
@@ -39,6 +40,16 @@
 <div id="notice" aria-live="polite"></div>
 <div id="caption"></div>
 <div id="panic" hidden></div>
+<div id="npcTalk" hidden><small id="npcName"></small><span id="npcLine"></span></div>
+<div id="shiverBuff" role="img" aria-label="狗熊哆嗦毛免傷中" hidden>🐻</div>
+<dialog id="skillIntro" aria-labelledby="skillTitle">
+  <p class="eyebrow">Lv.10 技能解鎖</p>
+  <h2 id="skillTitle">🐻 狗熊哆嗦毛</h2>
+  <p><span class="desktop">按 <kbd>C</kbd> 發動。</span><span class="touch">在搖桿以外的場地快速點兩下發動。</span></p>
+  <p>抖毛期間頭頂會亮起熊頭圖案。你可繼續移動，<strong>2 秒內免疫所有雷擊</strong>。任何打中的雷都會顯示「閃躲」。</p>
+  <p>冷卻 <strong>30 秒</strong>，右上角可查看剩餘時間。</p>
+  <form method="dialog"><button autofocus>知道了，繼續渡劫</button></form>
+</dialog>
 <div id="joystick" hidden><div id="stick"></div></div>
 <div id="flash"></div>
 <section id="overlay">
@@ -58,7 +69,7 @@
 </section>
 </main>
 <script type="module">
-import('./game.js?v=9').catch(error => {
+import('./game.js?v=10').catch(error => {
   console.error(error)
   document.querySelector('#description').textContent = '無法載入 3D 場景。請確認瀏覽器支援 WebGL，並重新整理。'
   document.querySelector('#start').textContent = '載入失敗'

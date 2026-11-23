@@ -6,7 +6,7 @@ const LIGHTNING_DENSITY = 2.5
 export const MAX_LEVEL = 15
 export const SHIVER_LEVEL = 10
 export const SHIVER_DURATION = 2
-const SHIVER_COOLDOWN = 20
+export const SHIVER_COOLDOWN = 30
 const ORBS_PER_BATCH = 12
 const START_HP = 70
 const LEVEL_HP = 10
@@ -53,6 +53,7 @@ export class Trial {
     this.charges = 3
     this.chargeTime = 0
     this.shiverTime = this.shiverCooldown = 0
+    this.awaitingShiverIntro = false
     this.elapsed = this.age = this.hits = this.steps = 0
     this.x = this.z = this.dx = 0
     this.dz = 1
@@ -87,7 +88,7 @@ export class Trial {
   }
 
   flash(direction) {
-    if (!['trial', 'rest', 'practice'].includes(this.phase) || !this.charges || this.dash || this.shiverTime) return
+    if (!['trial', 'rest', 'practice'].includes(this.phase) || !this.charges || this.dash || this.awaitingShiverIntro) return
     const [x, z] = direction ?? [this.dx, this.dz]
     const length = Math.hypot(x, z)
     if (!length) return
@@ -103,7 +104,7 @@ export class Trial {
 
   shiver() {
     if (!['trial','rest'].includes(this.phase) || this.level < SHIVER_LEVEL ||
-        this.shiverCooldown || this.dash) return
+        this.shiverCooldown || this.awaitingShiverIntro) return
     this.shiverTime = SHIVER_DURATION
     this.shiverCooldown = SHIVER_COOLDOWN
     this.idle = 0
@@ -111,8 +112,9 @@ export class Trial {
     this.events.push({type:'shiver', x:this.x, z:this.z})
   }
 
-  finish(escaped) {
-    this.phase = escaped ? 'escaped' : 'dead'
+  finish(outcome) {
+    this.phase = outcome
+    this.shiverTime = 0
     this.bolts.length = 0
     this.meditating = false
     this.events.push({type:this.phase})
@@ -179,7 +181,7 @@ export class Trial {
         this.meditationStagger = MEDITATION_STAGGER
         this.events.push({type:'hurt', damage})
         if (!this.hp) {
-          this.finish(false)
+          this.finish('dead')
           return
         }
       }
@@ -193,7 +195,10 @@ export class Trial {
     while (this.level < MAX_LEVEL && this.xp >= goal(this.level)) {
       this.xp -= goal(this.level)
       this.level++
-      if (this.level === SHIVER_LEVEL) this.events.push({type:'shiverUnlocked', x:this.x, z:this.z})
+      if (this.level === SHIVER_LEVEL) {
+        this.awaitingShiverIntro = true
+        this.events.push({type:'shiverUnlocked', x:this.x, z:this.z})
+      }
       this.maxHp += LEVEL_HP
       this.hp += LEVEL_HP
     }
@@ -239,6 +244,7 @@ export class Trial {
   }
 
   update(dt, mx=0, mz=0) {
+    if (this.awaitingShiverIntro) return
     if (this.phase === 'intro') {
       const previous = this.remaining
       this.remaining -= dt
@@ -272,7 +278,7 @@ export class Trial {
       this.x += this.dx * step
       this.z += this.dz * step
       this.dash = Math.max(0, this.dash - dt)
-    } else if (!shivering && moving > 0) {
+    } else if (moving > 0) {
       this.dx = mx / moving
       this.dz = mz / moving
       const speed = Math.min(10, 6 + .15 * (this.level - 1)) * (slowed ? .5 : 1)
@@ -285,7 +291,7 @@ export class Trial {
       this.x *= scale
       this.z *= scale
     } else if (distanceFromCenter > RADIUS + BODY_RADIUS) {
-      this.finish(true)
+      this.finish('escaped')
       return
     }
     this.meditationStagger = Math.max(0, this.meditationStagger - dt)
@@ -295,17 +301,17 @@ export class Trial {
     this.shiverTime = Math.max(0, this.shiverTime - dt)
     if (this.phase === 'dead') return
     this.collect(dt)
-    if (practice) return
+    if (practice || this.awaitingShiverIntro) return
     if (this.phase === 'rest') {
       this.remaining -= dt
       if (this.remaining <= 1e-7) {
-        if (!this.completed) this.stage++
-        this.beginStage()
+        this.stage++
+        if (this.stage === REALMS.length - 1) this.finish('victory')
+        else this.beginStage()
       }
     } else {
       this.age += dt
-      if (!this.completed && this.age + 1e-7 >= STAGE_DURATION) {
-        this.completed = this.stage === REALMS.length - 1
+      if (this.age + 1e-7 >= STAGE_DURATION) {
         this.bolts.length = 0
         this.phase = 'rest'
         this.remaining = REST

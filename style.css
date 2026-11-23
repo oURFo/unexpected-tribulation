@@ -85,3 +85,14 @@ progress{width:100%;height:5px;appearance:none;border:0;background:#ffffff25}pro
   #overlay:not(.has-ending){padding:10px clamp(18px,5vw,90px)}
   #overlay:not(.has-ending) .card{max-width:390px}
 }
+#exitLesson{margin-top:.55rem;padding:.45em .65em;border-left:2px solid #ebc77e;background:#e9c67914}
+#exitLesson strong{color:#f3ce84}
+#skillIntro{width:min(420px,calc(100% - 28px));max-height:calc(100% - 28px);padding:clamp(18px,5vw,30px);color:#f5ecd8;background:#15242deF;border:1px solid #e8ca8299;box-shadow:0 12px 50px #08141daf}
+#skillIntro::backdrop{background:#0a131cd9}
+#skillIntro h2{color:#ffdb94;font-family:var(--serif);margin:.3em 0 .6em}
+#skillIntro p{line-height:1.5;margin:.65em 0}
+#skillIntro kbd{color:#9af5ff;border:1px solid #83dce7;padding:1px 5px;border-radius:3px}
+#skillIntro button{width:100%;margin-top:8px;padding:9px;border:1px solid #ffe4aa;background:#ebc77e;color:#231c12;font-weight:800}
+#shiverBuff{position:absolute;top:0;left:0;pointer-events:none;width:26px;height:26px;display:grid;place-items:center;border-radius:50%;border:1.5px solid #88fbff;background:#113641;box-shadow:0 0 9px #79f4ffad;font-size:16px;z-index:1}
+#npcTalk{position:absolute;top:0;left:0;pointer-events:none;width:max-content;max-width:min(215px,58vw);border-radius:7px;padding:5px 9px;background:#152b35ec;color:#d2eef1;border:1px solid #def4ff68;box-shadow:0 2px 8px #0711187f;font-size:clamp(.69rem,2.1vw,.86rem);line-height:1.35}
+#npcTalk small{display:block;font-weight:800;color:#eac581}
