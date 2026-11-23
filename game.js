@@ -1,5 +1,5 @@
 import * as T from './vendor/three.module.min.js'
-import {RADIUS, REALMS, TYPES, Trial, goal, MAX_LEVEL, STAGE_DURATION, SHIVER_LEVEL, SHIVER_DURATION} from './rules.js?v=10'
+import {RADIUS, REALMS, TYPES, Trial, goal, MAX_LEVEL, STAGE_DURATION, SHIVER_LEVEL, SHIVER_DURATION} from './rules.js?v=13'
 import {endings} from './endings.js?v=9'
 import {spectators} from './spectators.js?v=10'
 
@@ -343,6 +343,14 @@ function commit(mesh,count){
 }
 const orbColors=colors.map(c=>new T.Color(c))
 const strikeColors=TYPES.map(t=>new T.Color(t.color))
+const fruitMeshes=instances(new T.IcosahedronGeometry(1,1),180)
+const fruitLeaves=instances(new T.IcosahedronGeometry(1,0),180)
+const fruitColor=new T.Color(0xffb729)
+const leafColor=new T.Color(0x8ff8a2)
+const fruitRing=instances(new T.RingGeometry(.78,1,32),180)
+fruitRing.material.transparent=true
+fruitRing.material.opacity=.55
+fruitRing.material.depthWrite=false
 const orbCapacity=300
 const orbMeshes=instances(new T.IcosahedronGeometry(1,0),orbCapacity)
 const orbHalo=new T.InstancedMesh(new T.PlaneGeometry(1,1),new T.MeshBasicMaterial({
@@ -367,6 +375,7 @@ trails.material.depthWrite=false
 const strikes=[]
 const smoke=[]
 const labels=[]
+const experienceSparks=[]
 
 let trial=new Trial()
 let now=0
@@ -510,6 +519,37 @@ function label(x,z,text,style='',duration=1){
   labels.push({element,x,z,time:now,duration})
 }
 
+function addExperienceSpark(x,z){
+  const element=document.createElement('span')
+  element.className='experience-spark'
+  element.setAttribute('aria-hidden','true')
+  $('game').append(element)
+  experienceSparks.push({element,x,z,time:now,origin:null})
+}
+
+function drawExperienceSparks(){
+  if (!experienceSparks.length) return
+  const bar=ui.xp.getBoundingClientRect()
+  for(let i=experienceSparks.length-1;i>=0;i--){
+    const spark=experienceSparks[i]
+    const progress=clamp((now-spark.time)/.66,0,1)
+    if(progress>=1||ui.hud.hidden){
+      if(progress>=1&&!ui.hud.hidden)ui.xp.animate([{boxShadow:"0 0 9px 3px #ffdc7d"},{boxShadow:"none"}],350)
+      spark.element.remove()
+      experienceSparks.splice(i,1)
+      continue
+    }
+    if(!spark.origin){
+      projected.set(spark.x,.85,spark.z).project(camera)
+      spark.origin=[(projected.x+1)*innerWidth/2,(1-projected.y)*innerHeight/2]
+    }
+    const easing=progress**1.35
+    const x=T.MathUtils.lerp(spark.origin[0],bar.left+bar.width*.5,easing)
+    const y=T.MathUtils.lerp(spark.origin[1],bar.top+bar.height*.5,easing)-Math.sin(progress*Math.PI)*56
+    spark.element.style.transform='translate('+x+'px,'+y+'px) scale('+ (1-.55*progress) +')'
+  }
+}
+
 function consumeEvents(){
   for(const event of trial.events){
     if(event.type==='wake'){
@@ -533,6 +573,10 @@ function consumeEvents(){
       shake=.3
       sound('hurt')
       label(trial.x,trial.z,'⚡ −'+event.damage+' 氣血')
+    } else if(event.type==='fruit'){
+      label(event.x,event.z,'經驗 +'+event.xp,'fruit-float',1.45)
+      addExperienceSpark(event.x,event.z)
+      sound('collect',2)
     } else if(event.type==='shiverUnlocked'){
       clearInput()
       ui.skillIntro.showModal()
@@ -581,6 +625,7 @@ function start(forceLesson=false){
   clearInput()
   smoke.length=strikes.length=0
   labels.splice(0).forEach(label=>label.element.remove())
+  experienceSparks.splice(0).forEach(spark=>spark.element.remove())
   flare=scorch=endTimer=0
   collectedAt=nextGather=nextTrail=nextChatter=chatterUntil=0
   lastLine=-1
@@ -759,7 +804,8 @@ function draw(dt, moveAmount){
   const flailing = running || (phase==='escaped'&&endTimer>0)
   const stride = now*22
   const startled = excited || flailing || shivering
-  avatar.rotation.y=Math.atan2(trial.dx,trial.dz)
+  const dashSide=trial.dash>1e-7?(trial.steps%2===0?1:-1):0
+  avatar.rotation.y=Math.atan2(trial.dx,trial.dz)+dashSide*Math.PI/2
   puppet.rotation.set(asleep?-1.45:excited?-.18:flailing?.23:0,0,flailing?.18*Math.sin(stride*.68):0)
   puppet.position.y=excited?Math.max(0,.65*Math.sin((1.75-remaining)*6)):flailing?.15*Math.abs(Math.sin(stride)):0
   face.rotation.y=flailing?.35*Math.sin(stride*.34):0
@@ -776,6 +822,7 @@ function draw(dt, moveAmount){
   faceColors.forEach(([material,color])=>material.color.copy(color).multiplyScalar(scorch>0?.19:1))
   feet.forEach((foot,i)=>{
     const swing=Math.sin(stride+i*Math.PI)
+    foot.position.x=(i===0?-1:1)*(dashSide?.38:.22)
     foot.position.z=trial.meditating?.30:.08+(flailing?.38*swing:0)
     foot.position.y=trial.meditating?.40:.22+(flailing?.38*Math.max(swing,0):0)
     foot.rotation.y=(i===0?1:-1)*(trial.meditating?.8:flailing?.29:0)
@@ -786,6 +833,18 @@ function draw(dt, moveAmount){
     s.rotation.x=trial.meditating?-.9:flailing?-.55+.76*Math.sin(stride*.82+i*2.8):0
     s.rotation.z=side*(startled?1.04+.42*Math.sin(stride+i*1.5):.25)
   })
+  if(dashSide){
+    puppet.rotation.set(-.08,0,dashSide*.32)
+    puppet.position.y=.08+.12*Math.sin(Math.PI*clamp(trial.dash/.25,0,1))
+    feet.forEach((foot,i)=>{
+      foot.position.y=i===(dashSide>0?0:1)?.30:.20
+      foot.rotation.y=dashSide*.42
+    })
+    sleeves.forEach((s,i)=>{
+      s.rotation.z=(i===0?-1:1)*1.10
+      s.rotation.x=-.45+dashSide*(i===0?-.25:.25)
+    })
+  }
   if(shivering){
     const shake=Math.sin(now*56)
     const shimmy=Math.cos(now*47)
@@ -840,6 +899,20 @@ function draw(dt, moveAmount){
   }
   commit(orbMeshes,n)
   commit(orbHalo,n)
+  let fruitCount=0
+  for(const fruit of trial.fruit){
+    const remaining=fruit.expiresAt-trial.elapsed
+    if(remaining<1.5&&Math.floor(now*9)%2===0)continue
+    const bob=.12*Math.sin(now*5+fruit.x)
+    setInstance(fruitMeshes,fruitCount,fruit.x,.62+bob,fruit.z,.38,.33,.38,fruitColor)
+    setInstance(fruitLeaves,fruitCount,fruit.x+.14,.98+bob,fruit.z,.23,.065,.10,leafColor,.32)
+    const size=.65+.14*Math.sin(now*6+fruit.z)
+    setInstance(fruitRing,fruitCount,fruit.x,.12,fruit.z,size,size,1,fruitColor,-Math.PI/2)
+    fruitCount++
+  }
+  commit(fruitMeshes,fruitCount)
+  commit(fruitLeaves,fruitCount)
+  commit(fruitRing,fruitCount)
   let warningCount=0
   let poolCount=0
   for(const b of trial.bolts){
@@ -879,6 +952,7 @@ function draw(dt, moveAmount){
   camera.lookAt(target)
   camera.updateMatrixWorld()
   updateFlyby()
+  drawExperienceSparks()
   ui.shiverBuff.hidden=!shivering
   if(shivering){
     projected.set(avatar.position.x,2.95+puppet.position.y,avatar.position.z).project(camera)

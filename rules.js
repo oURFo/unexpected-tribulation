@@ -3,6 +3,10 @@ export const BODY_RADIUS = 0.45
 export const REST = 5
 export const STAGE_DURATION = 30
 const LIGHTNING_DENSITY = 2.5
+const FRUIT_CHANCE = .05
+const FRUIT_LIFETIME = 10
+const FRUIT_EXPERIENCE = 100
+const FRUIT_RADIUS = .5
 export const MAX_LEVEL = 15
 export const SHIVER_LEVEL = 10
 export const SHIVER_DURATION = 2
@@ -61,6 +65,7 @@ export class Trial {
     this.meditating = false
     this.events = []
     this.orbs = []
+    this.fruit = []
     this.bolts = []
     this.timers = []
   }
@@ -114,6 +119,7 @@ export class Trial {
 
   finish(outcome) {
     this.phase = outcome
+    this.fruit.length = 0
     this.shiverTime = 0
     this.bolts.length = 0
     this.meditating = false
@@ -170,6 +176,9 @@ export class Trial {
       while (bolt.ticks < count && active >= bolt.ticks * .5) {
         bolt.ticks++
         this.events.push({type:'strike', bolt})
+        if (bolt.kind === 1 && this.random() < FRUIT_CHANCE) {
+          this.fruit.push({x:bolt.x, z:bolt.z, expiresAt:this.elapsed+FRUIT_LIFETIME})
+        }
         if (Math.hypot(this.x-bolt.x,this.z-bolt.z) > type.radius + BODY_RADIUS) continue
         if (shivering) this.events.push({type:'evade', x:this.x, z:this.z})
         if (immune || shivering) continue
@@ -203,6 +212,19 @@ export class Trial {
       this.hp += LEVEL_HP
     }
     if (this.level === MAX_LEVEL) this.xp = 0
+  }
+
+  collectFruit() {
+    for (let i = this.fruit.length - 1; i >= 0; i--) {
+      const fruit = this.fruit[i]
+      if (fruit.expiresAt <= this.elapsed + 1e-7) {
+        this.fruit.splice(i,1)
+      } else if (Math.hypot(this.x-fruit.x,this.z-fruit.z) <= BODY_RADIUS + FRUIT_RADIUS) {
+        this.fruit.splice(i,1)
+        this.gainExperience(FRUIT_EXPERIENCE)
+        this.events.push({type:'fruit', x:fruit.x, z:fruit.z, xp:FRUIT_EXPERIENCE})
+      }
+    }
   }
 
   collect(dt) {
@@ -300,6 +322,7 @@ export class Trial {
     if (this.phase === 'trial') this.strikes(dt, immune, shivering)
     this.shiverTime = Math.max(0, this.shiverTime - dt)
     if (this.phase === 'dead') return
+    if (!practice) this.collectFruit()
     this.collect(dt)
     if (practice || this.awaitingShiverIntro) return
     if (this.phase === 'rest') {
