@@ -1,10 +1,10 @@
 import * as T from './vendor/three.module.min.js'
-import {RADIUS, REALMS, TYPES, Trial, goal, MAX_LEVEL, STAGE_DURATION, SHIVER_LEVEL, SHIVER_DURATION} from './rules.js?v=13'
+import {RADIUS, REALMS, TYPES, Trial, goal, MAX_LEVEL, STAGE_DURATION, SHIVER_LEVEL, SHIVER_DURATION} from './rules.js?v=14'
 import {endings} from './endings.js?v=9'
 import {spectators} from './spectators.js?v=10'
 
 const $ = id => document.getElementById(id)
-const ui = Object.fromEntries(['world','tutorial','lessonStep','lessonTitle','lessonHint','exitLesson','orbLesson','skipLesson','beginTrial','replayLesson','hud','phase','realm','hp','life','xp','level','experience','stageTime','next','charges','chargeTime','shiverStatus','overlay','start','eyebrow','title','description','ending','endingArt','endingTitle','results','controls','notice','caption','panic','npcTalk','npcName','npcLine','skillIntro','shiverBuff','joystick','stick','flash','sound'].map(id => [id,$(id)]))
+const ui = Object.fromEntries(['world','tutorial','lessonStep','lessonTitle','lessonHint','exitLesson','orbLesson','skipLesson','beginTrial','replayLesson','hud','phase','realm','hp','life','xp','level','experience','stageTime','next','charges','chargeTime','shiverStatus','overlay','start','eyebrow','title','description','ending','endingArt','endingTitle','results','controls','notice','caption','panic','npcTalk','npcName','npcLine','skillIntro','pauseGame','pauseMenu','shiverBuff','joystick','stick','flash','sound'].map(id => [id,$(id)]))
 const clamp = T.MathUtils.clamp
 const tau = Math.PI * 2
 const colors = [0xfff2c9, 0x81ffa7, 0x66c8ff]
@@ -722,6 +722,7 @@ function hud(){
   const active=phase==='trial'||phase==='rest'
   const practice=phase==='practice'
   ui.tutorial.hidden=!practice
+  ui.pauseGame.hidden=!(active||practice||phase==='intro')
   if(practice)updateLesson()
   const ending=(phase==='dead'||phase==='escaped')&&ui.overlay.hidden
   ui.hud.hidden=!(active||ending)
@@ -1002,7 +1003,7 @@ function clearInput(){
 }
 
 addEventListener('keydown',event=>{
-  if(event.ctrlKey||event.metaKey||event.altKey)return
+  if(event.ctrlKey||event.metaKey||event.altKey||ui.pauseMenu.open||ui.skillIntro.open)return
   if(event.code==='Space'&&ui.overlay.hidden&&!(event.target instanceof HTMLButtonElement)){
     event.preventDefault()
     if(!event.repeat)useFlash()
@@ -1021,7 +1022,7 @@ function releaseStick(){
 }
 
 ui.world.addEventListener('pointerdown',event=>{
-  if(event.pointerType==='mouse'||!['practice','trial','rest'].includes(trial.phase)||ui.skillIntro.open)return
+  if(event.pointerType==='mouse'||!['practice','trial','rest'].includes(trial.phase)||ui.skillIntro.open||ui.pauseMenu.open)return
   const x=event.clientX,y=event.clientY
   const lowerLeft=x<innerWidth/2&&y>=innerHeight/2
   if(lowerLeft){
@@ -1084,6 +1085,17 @@ for(const name of ['pointercancel','lostpointercapture']){
     if(touchMoves.delete(event.pointerId))lastTap=null
   })
 }
+ui.pauseGame.addEventListener('click',()=>{
+  if(ui.pauseGame.hidden||ui.skillIntro.open||ui.pauseMenu.open)return
+  clearInput()
+  ui.pauseMenu.showModal()
+  soundContext?.suspend().catch(()=>{})
+})
+ui.pauseMenu.addEventListener('close',()=>{
+  clearInput()
+  ui.pauseGame.blur()
+  soundContext?.resume().catch(()=>{})
+})
 ui.sound.addEventListener('click',()=>{
   soundOn=!soundOn
   ui.sound.textContent=soundOn?'音效開':'音效關'
@@ -1107,7 +1119,7 @@ const frameStep=1/120
 renderer.setAnimationLoop(time=>{
   const dt=clamp((time-lastFrame)/1000,0,.05)
   lastFrame=time
-  if(document.hidden||ui.skillIntro.open){
+  if(document.hidden||ui.skillIntro.open||ui.pauseMenu.open){
     accumulator=0
     return
   }

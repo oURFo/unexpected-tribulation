@@ -9,14 +9,14 @@ body{margin:0;overscroll-behavior:none}button{font:inherit;cursor:pointer}
 .eyebrow{font-size:.72rem;letter-spacing:.24em;color:var(--gold)}
 h1{font:900 clamp(2.1rem,7.5vw,4.4rem)/1.18 var(--serif);margin:.3em 0 .38em;color:#ffe4aa;text-wrap:balance}
 #description{line-height:1.65;color:#decfac}#start{margin-top:12px;border:1px solid #ffe4aa;background:#ebc77e;color:#231c12;font-weight:800;padding:12px 23px;width:100%}
-#start:focus-visible,#sound:focus-visible{outline:3px solid #6bf4e7;outline-offset:3px}
+#start:focus-visible,#sound:focus-visible,#pauseGame:focus-visible{outline:3px solid #6bf4e7;outline-offset:3px}
 #controls{color:#b9c9c7;font-size:.84rem;line-height:1.55;margin-bottom:0}.touch{display:none}
 #results{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;font-size:.9rem}#results div{padding:8px;background:#ffffff0a}#results b{display:block;color:var(--gold);font-size:1.1rem}
 #hud{position:absolute;top:max(12px,env(safe-area-inset-top));left:12px;right:12px;display:grid;grid-template-columns:1fr 1.5fr 1fr;gap:8px;align-items:start;pointer-events:none}
 .panel{background:#101b23dc;border:1px solid #e8ca8266;padding:8px 12px;display:grid;gap:5px;max-width:220px;min-width:0}.panel small{font-size:clamp(.67rem,2vw,.84rem);color:#e9d9ae}.panel strong{font-family:var(--serif);font-size:clamp(.86rem,3vw,1.35rem)}.realm{justify-self:center;text-align:center;width:min(100%,262px);max-width:none}.steps{justify-self:end;text-align:right}
 progress{width:100%;height:5px;appearance:none;border:0;background:#ffffff25}progress::-webkit-progress-bar{background:#ffffff25}progress::-webkit-progress-value{background:#ffd683}progress::-moz-progress-bar{background:#ffd683}#life::-webkit-progress-value{background:#fa9277}#life::-moz-progress-bar{background:#fa9277}
 #charges{display:flex;gap:4px;justify-content:flex-end}.charge{display:grid;place-items:center;width:24px;height:24px;border-radius:100%;background:conic-gradient(#77f0ff var(--fill),#344e55 var(--fill));color:#eff9f1;font-size:.82rem}.charge i{background:#16252a;border-radius:100%;width:19px;height:19px;text-align:center;font-style:normal}.charge.empty{color:#809a9f}
-#sound{position:absolute;z-index:3;bottom:max(12px,env(safe-area-inset-bottom));right:12px;background:#14252c;border:1px solid #e8ca8270;color:#ffe4aa;padding:7px 10px;font-size:.8rem}
+#sound,#pauseGame{position:absolute;z-index:3;bottom:max(12px,env(safe-area-inset-bottom));right:12px;background:#14252c;border:1px solid #e8ca8270;color:#ffe4aa;padding:7px 10px;font-size:.8rem}
 #notice{pointer-events:none;position:absolute;inset:27% 0 auto;text-align:center;text-shadow:0 4px 18px #06161d,0 2px 4px #0a1517;font-family:var(--serif);font-size:clamp(2rem,9vw,5.7rem);font-weight:900;color:#ffdf9d;line-height:1.15}
 #notice span{display:block;font:700 clamp(.85rem,3vw,1.2rem)/1.5 system-ui,sans-serif;letter-spacing:.13em;margin:.65em 8px}
 #caption{pointer-events:none;position:absolute;bottom:8%;text-align:center;width:100%;font-weight:700;color:#adebd9;text-shadow:0 2px 5px #000}
@@ -87,14 +87,16 @@ progress{width:100%;height:5px;appearance:none;border:0;background:#ffffff25}pro
 }
 #exitLesson{margin-top:.55rem;padding:.45em .65em;border-left:2px solid #ebc77e;background:#e9c67914}
 #exitLesson strong{color:#f3ce84}
-#skillIntro{width:min(420px,calc(100% - 28px));max-height:calc(100% - 28px);padding:clamp(18px,5vw,30px);color:#f5ecd8;background:#15242deF;border:1px solid #e8ca8299;box-shadow:0 12px 50px #08141daf}
-#skillIntro::backdrop{background:#0a131cd9}
-#skillIntro h2{color:#ffdb94;font-family:var(--serif);margin:.3em 0 .6em}
+#skillIntro,#pauseMenu{width:min(420px,calc(100% - 28px));max-height:calc(100% - 28px);padding:clamp(18px,5vw,30px);color:#f5ecd8;background:#15242deF;border:1px solid #e8ca8299;box-shadow:0 12px 50px #08141daf}
+#skillIntro::backdrop,#pauseMenu::backdrop{background:#0a131cd9}
+#skillIntro h2,#pauseMenu h2{color:#ffdb94;font-family:var(--serif);margin:.3em 0 .6em}
 #skillIntro p{line-height:1.5;margin:.65em 0}
 #skillIntro kbd{color:#9af5ff;border:1px solid #83dce7;padding:1px 5px;border-radius:3px}
-#skillIntro button{width:100%;margin-top:8px;padding:9px;border:1px solid #ffe4aa;background:#ebc77e;color:#231c12;font-weight:800}
+#skillIntro button,#pauseMenu button{width:100%;margin-top:8px;padding:9px;border:1px solid #ffe4aa;background:#ebc77e;color:#231c12;font-weight:800}
 #shiverBuff{position:absolute;top:0;left:0;pointer-events:none;width:26px;height:26px;display:grid;place-items:center;border-radius:50%;border:1.5px solid #88fbff;background:#113641;box-shadow:0 0 9px #79f4ffad;font-size:16px;z-index:1}
 #npcTalk{position:absolute;top:0;left:0;pointer-events:none;width:max-content;max-width:min(215px,58vw);border-radius:7px;padding:5px 9px;background:#152b35ec;color:#d2eef1;border:1px solid #def4ff68;box-shadow:0 2px 8px #0711187f;font-size:clamp(.69rem,2.1vw,.86rem);line-height:1.35}
 #npcTalk small{display:block;font-weight:800;color:#eac581}
 .fruit-float{color:#ffdb78;text-shadow:0 2px 5px #2a180c,0 0 10px #ffb937aa;font-size:clamp(1rem,3vw,1.35rem)}
 .experience-spark{position:absolute;top:-7px;left:-7px;z-index:2;pointer-events:none;width:14px;height:14px;border-radius:50%;background:#fff2b5;box-shadow:0 0 7px 3px #ffe072,0 0 17px 7px #ffae3db3}
+#pauseGame{right:calc(83px + env(safe-area-inset-right));min-width:50px}
+#pauseMenu{max-width:310px;text-align:center}
