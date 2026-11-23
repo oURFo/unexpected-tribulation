@@ -1,6 +1,9 @@
 export const RADIUS = 20
 export const BODY_RADIUS = 0.45
 export const REST = 5
+export const STAGE_DURATION = 30 * 60
+export const MAX_LEVEL = 15
+const ORBS_PER_BATCH = 10
 export const REALMS = [
   ['煉氣期', 3.5, 1.8, 2.5, 2.0],
   ['築基期', 3.3, 1.7, 2.3, 1.9],
@@ -23,8 +26,7 @@ export const TYPES = [
   { radius: 1.8, damage: 20, color: 0xa1e5ff },
   { radius: 2.6, damage: 12, color: 0xff69c6 },
 ]
-export const goal = stage => 60 + 20 * stage
-const minimumTrial = REALMS.map(row => row[5] ? row[5] + row[6] + .1 : 6)
+export const goal = level => Math.round(10 * 1.4 ** (level - 1)) * 10
 
 export function pointInRing(min, max, random = Math.random) {
   const angle = random() * 2 * Math.PI
@@ -37,6 +39,7 @@ export class Trial {
     this.random = random
     this.phase = 'title'
     this.stage = 0
+    this.level = 1
     this.xp = 0
     this.hp = this.maxHp = 100
     this.charges = 3
@@ -65,7 +68,7 @@ export class Trial {
   }
 
   refill() {
-    for (let i = 0; i < 25; i++) {
+    for (let i = 0; i < ORBS_PER_BATCH; i++) {
       const [x, z] = pointInRing(16, RADIUS, this.random)
       const roll = this.random()
       this.orbs.push({x, z, speed: 0, kind: roll < .72 ? 0 : roll < .97 ? 1 : 2, intake: 0})
@@ -125,6 +128,18 @@ export class Trial {
     this.bolts = this.bolts.filter(bolt => bolt.age < bolt.warning + (bolt.kind === 2 ? 2 : .3))
   }
 
+  gainExperience(amount) {
+    if (this.level >= MAX_LEVEL) return
+    this.xp += amount
+    while (this.level < MAX_LEVEL && this.xp >= goal(this.level)) {
+      this.xp -= goal(this.level)
+      this.level++
+      this.maxHp += 15
+      this.hp += 15
+    }
+    if (this.level === MAX_LEVEL) this.xp = 0
+  }
+
   collect(dt) {
     if (!this.meditating) {
       for (const orb of this.orbs) {
@@ -149,7 +164,7 @@ export class Trial {
           this.charges++
           if (this.charges === 3) this.chargeTime = 0
         }
-        else if (!this.completed) this.xp += orb.kind === 0 ? 10 : 5
+        else this.gainExperience(orb.kind === 0 ? 10 : 5)
         this.events.push({type:'collect', kind:orb.kind})
         continue
       }
@@ -193,7 +208,7 @@ export class Trial {
     } else if (moving > 0) {
       this.dx = mx / moving
       this.dz = mz / moving
-      const speed = Math.min(10, 6 + .15 * this.stage) * (slowed ? .5 : 1)
+      const speed = Math.min(10, 6 + .15 * (this.level - 1)) * (slowed ? .5 : 1)
       this.x += this.dx * speed * Math.min(1,moving) * dt
       this.z += this.dz * speed * Math.min(1,moving) * dt
     }
@@ -209,17 +224,12 @@ export class Trial {
     if (this.phase === 'rest') {
       this.remaining -= dt
       if (this.remaining <= 0) {
-        if (this.stage < REALMS.length - 1) {
-          this.stage++
-          this.maxHp += 15
-          this.hp += 15
-        }
+        if (!this.completed) this.stage++
         this.beginStage()
       }
     } else {
       this.age += dt
-      if (!this.completed && this.age >= minimumTrial[this.stage] && this.xp >= goal(this.stage)) {
-        this.xp -= goal(this.stage)
+      if (!this.completed && this.age + 1e-7 >= STAGE_DURATION) {
         this.completed = this.stage === REALMS.length - 1
         this.bolts.length = 0
         this.phase = 'rest'

@@ -1,8 +1,8 @@
 import * as T from './vendor/three.module.min.js'
-import {BODY_RADIUS, RADIUS, REALMS, TYPES, Trial, goal} from './rules.js'
+import {RADIUS, REALMS, TYPES, Trial, goal, MAX_LEVEL, STAGE_DURATION} from './rules.js?v=2'
 
 const $ = id => document.getElementById(id)
-const ui = Object.fromEntries(['world','hud','phase','realm','hp','life','xp','next','charges','chargeTime','overlay','start','eyebrow','title','description','results','controls','notice','caption','joystick','stick','flash','sound'].map(id => [id,$(id)]))
+const ui = Object.fromEntries(['world','hud','phase','realm','hp','life','xp','level','experience','stageTime','next','charges','chargeTime','overlay','start','eyebrow','title','description','results','controls','notice','caption','joystick','stick','flash','sound'].map(id => [id,$(id)]))
 const clamp = T.MathUtils.clamp
 const tau = Math.PI * 2
 const colors = [0xfff2c9, 0x81ffa7, 0x66c8ff]
@@ -404,7 +404,7 @@ function summary(){
     : '三十六計，走為上策。明天睡飽再渡！'
   const seconds=Math.floor(trial.elapsed)
   const time=Math.floor(seconds/60)+' 分 '+seconds%60+' 秒'
-  const rows=[['修仙境界',REALMS[trial.stage][0]],['最終等級','Lv.'+(trial.stage+1)],
+  const rows=[['修仙境界',REALMS[trial.stage][0]],['最終等級','Lv.'+trial.level],
     ['撐過時間',time],['被雷劈中',trial.hits+' 次'],['成功閃身步',trial.steps+' 次']]
   ui.results.replaceChildren(...rows.map(([name,value])=>{
     const div=document.createElement('div')
@@ -418,7 +418,7 @@ function summary(){
 }
 
 function hud(){
-  const {phase,stage,xp,hp,maxHp,charges,chargeTime,completed,remaining}=trial
+  const {phase,stage,level,xp,hp,maxHp,charges,chargeTime,completed,remaining,age}=trial
   const active=phase==='trial'||phase==='rest'
   const ending=(phase==='dead'||phase==='escaped')&&ui.overlay.hidden
   ui.hud.hidden=!(active||ending)
@@ -437,21 +437,26 @@ function hud(){
   } else setNotice('')
   ui.caption.textContent=!active?'':trial.meditating?'打坐聚靈中':trial.dash>0?'閃身免疫雷擊':''
   if(!active&&!ending)return
-  const key=[phase,stage,xp,hp,charges,completed,Math.floor(chargeTime*10)].join('|')
+  const seconds = Math.max(0,Math.ceil(STAGE_DURATION-age-1e-7))
+  const restSeconds = Math.ceil(remaining ?? 0)
+  const key=[phase,stage,level,xp,hp,charges,completed,seconds,restSeconds,Math.floor(chargeTime*10)].join('|')
   if(key===hudKey)return
   hudKey=key
   ui.phase.textContent=phase==='rest'?'已完成':completed?'極限生存':'當前境界'
-  ui.realm.textContent=name+' · Lv.'+(stage+1)
+  ui.realm.textContent=name
+  const clock = [Math.floor(seconds/60),seconds%60].map(value=>String(value).padStart(2,'0')).join(':')
+  ui.stageTime.textContent=phase==='rest'?'休整 '+restSeconds+' 秒':completed?'極限生存':'剩餘 '+clock
   ui.hp.textContent=hp+' / '+maxHp
   ui.life.max=maxHp
   ui.life.value=hp
-  ui.xp.max=goal(stage)
-  ui.xp.value=completed||phase==='rest'?goal(stage):Math.min(xp,goal(stage))
-  ui.xp.setAttribute('aria-label','境界經驗 '+ui.xp.value+' / '+goal(stage))
-  ui.life.setAttribute('aria-label','氣血')
+  const maxLevel=level===MAX_LEVEL
+  ui.level.textContent='Lv.'+level
+  ui.xp.max=goal(level)
+  ui.xp.value=maxLevel?goal(level):xp
+  ui.experience.textContent=maxLevel?'已滿級':xp+' / '+goal(level)+' EXP'
   ui.next.textContent=next
     ? (phase==='rest'?'即將開始 · ':'下一階 · ')+next+(stage===3?' · 解鎖連續雷':'')
-    : completed?'已達最高境界':'最高境界 · '+Math.min(xp,goal(stage))+'/'+goal(stage)+' EXP'
+    : completed?'已完成最高境界':'最高境界'
   chargeNodes.forEach((node,i)=>{
     node.classList.toggle('empty',i>=charges)
     node.style.setProperty('--fill',(i<charges?100:i===charges?chargeTime*10:0)+'%')

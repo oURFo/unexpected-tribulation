@@ -5,14 +5,19 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#142328">
 <title>沒預料到我今天渡劫</title>
-<link rel="stylesheet" href="./style.css">
+<link rel="stylesheet" href="./style.css?v=2">
 </head>
 <body>
 <main id="game" aria-label="沒預料到我今天渡劫">
 <div id="world"></div>
 <header id="hud" hidden>
-<section class="panel health"><small>氣血</small><strong id="hp"></strong><progress id="life" max="100"></progress></section>
-<section class="panel realm"><small id="phase"></small><strong id="realm"></strong><progress id="xp"></progress><small id="next"></small></section>
+<section class="panel health">
+<div class="health-row"><small>氣血</small><strong id="hp"></strong></div>
+<progress id="life" max="100" aria-label="氣血"></progress>
+<div class="health-row experience"><strong id="level"></strong><small id="experience"></small></div>
+<progress id="xp" aria-label="等級經驗"></progress>
+</section>
+<section class="panel realm"><small id="phase"></small><strong id="realm"></strong><time id="stageTime"></time><small id="next"></small></section>
 <section class="panel steps"><small>閃身步</small><div id="charges"></div><small id="chargeTime"></small></section>
 </header>
 <button id="sound" aria-label="切換音效" aria-pressed="true">音效開</button>
@@ -32,7 +37,7 @@
 </section>
 </main>
 <script type="module">
-import('./game.js').catch(error => {
+import('./game.js?v=2').catch(error => {
   console.error(error)
   document.querySelector('#description').textContent = '無法載入 3D 場景。請確認瀏覽器支援 WebGL，並重新整理。'
   document.querySelector('#start').textContent = '載入失敗'
