@@ -1,13 +1,25 @@
 import * as T from './vendor/three.module.min.js'
-import {RADIUS, REALMS, TYPES, Trial, goal, MAX_LEVEL, STAGE_DURATION} from './rules.js?v=5'
+import {RADIUS, REALMS, TYPES, Trial, goal, MAX_LEVEL, STAGE_DURATION} from './rules.js?v=6'
 import {drawEnding, endings} from './endings.js?v=3'
 
 const $ = id => document.getElementById(id)
-const ui = Object.fromEntries(['world','hud','phase','realm','hp','life','xp','level','experience','stageTime','next','charges','chargeTime','overlay','start','eyebrow','title','description','ending','endingArt','endingTitle','results','controls','notice','caption','panic','joystick','stick','flash','sound'].map(id => [id,$(id)]))
+const ui = Object.fromEntries(['world','tutorial','lessonStep','lessonTitle','lessonHint','skipLesson','beginTrial','replayLesson','hud','phase','realm','hp','life','xp','level','experience','stageTime','next','charges','chargeTime','overlay','start','eyebrow','title','description','ending','endingArt','endingTitle','results','controls','notice','caption','panic','joystick','stick','flash','sound'].map(id => [id,$(id)]))
 const clamp = T.MathUtils.clamp
 const tau = Math.PI * 2
 const colors = [0xfff2c9, 0x81ffa7, 0x66c8ff]
 const coarse = matchMedia('(pointer: coarse)')
+const lessonStorageKey = 'unexpected-tribulation-tutorial-v1'
+let lessonSeen = false
+try { lessonSeen = localStorage.getItem(lessonStorageKey) === 'done' } catch {}
+const lessons = [
+  ['先動起來', '用 W、A、S、D 走幾步。', '拖動左下角的搖桿，走幾步試試。'],
+  ['停下打坐', '放開移動鍵，原地停一下，把靈氣球吸入體內。', '放開搖桿，原地停一下，把靈氣球吸入體內。'],
+  ['用閃身步躲雷', '按空白鍵，朝角色面向閃身。閃身途中免疫雷擊，次數會慢慢補回。', '用手指在搖桿以外的場地滑一下，角色會朝滑動方向閃身。閃身途中免疫雷擊。'],
+  ['準備好了，天雷來了！', '看到地上縮小的雷圈就離開。白球加經驗、綠球補血、藍球補閃身。撐不住就跑出大陣結算。'],
+]
+let lesson = 0
+let shownLesson = -1
+let lessonTouch = null
 const renderer = new T.WebGLRenderer({antialias: !coarse.matches, powerPreference:'high-performance'})
 renderer.setPixelRatio(Math.min(devicePixelRatio, coarse.matches ? 1.4 : 1.8))
 renderer.outputColorSpace = T.SRGBColorSpace
@@ -439,11 +451,13 @@ function consumeEvents(){
   trial.events.length=0
 }
 
-function start(){
+function start(forceLesson=false){
   soundContext ??= window.AudioContext ? new AudioContext() : null
   soundContext?.resume().catch(()=>{})
   trial=new Trial()
-  trial.intro()
+  trial.intro(forceLesson || !lessonSeen)
+  lesson=0
+  shownLesson=-1
   clearInput()
   smoke.length=strikes.length=0
   labels.splice(0).forEach(label=>label.element.remove())
@@ -459,6 +473,43 @@ function start(){
   ui.joystick.hidden=true
   ui.start.blur()
   hudKey=''
+}
+
+function endLesson() {
+  if (trial.phase !== 'practice') return
+  lessonSeen=true
+  try { localStorage.setItem(lessonStorageKey,'done') } catch {}
+  clearInput()
+  chatterUntil=0
+  trial=new Trial()
+  trial.beginStage()
+  ui.tutorial.hidden=true
+}
+
+function useFlash(direction) {
+  if (trial.phase === 'practice' && lesson < 2) return
+  trial.flash(direction)
+}
+
+function updateLesson() {
+  if (lesson===0 && Math.hypot(trial.x,trial.z)>=1.2) {
+    lesson=1
+    trial.orbs=[0,1,2].map(kind=>{
+      const angle=(kind-1)*1.35+Math.atan2(trial.dz,trial.dx)
+      return {x:trial.x+1.7*Math.cos(angle),z:trial.z+1.7*Math.sin(angle),kind,speed:0,intake:0}
+    })
+  }
+  if (lesson===1 && trial.xp>0) lesson=2
+  if (lesson===2 && trial.steps>0 && !trial.dash) lesson=3
+  if (shownLesson===lesson && lessonTouch===coarse.matches) return
+  shownLesson=lesson
+  lessonTouch=coarse.matches
+  const [title, desktopHint, touchHint=desktopHint]=lessons[lesson]
+  ui.lessonStep.textContent=lesson<3?'渡劫練習 '+(lesson+1)+' / 3':'練習完成'
+  ui.lessonTitle.textContent=title
+  ui.lessonHint.textContent=lessonTouch?touchHint:desktopHint
+  ui.skipLesson.hidden=lesson===3
+  ui.beginTrial.hidden=lesson!==3
 }
 
 function summary(){
@@ -487,15 +538,19 @@ function summary(){
     return div
   }))
   ui.start.textContent='再渡一次'
+  ui.replayLesson.hidden=false
   ui.start.focus()
 }
 
 function hud(){
   const {phase,stage,level,xp,hp,maxHp,charges,chargeTime,completed,remaining,age}=trial
   const active=phase==='trial'||phase==='rest'
+  const practice=phase==='practice'
+  ui.tutorial.hidden=!practice
+  if(practice)updateLesson()
   const ending=(phase==='dead'||phase==='escaped')&&ui.overlay.hidden
   ui.hud.hidden=!(active||ending)
-  ui.joystick.hidden=!(active&&coarse.matches)
+  ui.joystick.hidden=!((active||practice)&&coarse.matches)
   const name=REALMS[stage][0]
   const next=REALMS[stage+1]?.[0]
   const upcoming=next??'極限生存'
@@ -508,7 +563,7 @@ function hud(){
   } else if(ending){
     setNotice(phase==='dead'?'灰飛煙滅':'留得青山在')
   } else setNotice('')
-  ui.caption.textContent=!active?'':trial.meditating?'打坐聚靈中':trial.dash>0?'閃身免疫雷擊':trial.meditationStagger>0?'打坐被雷擊中斷':''
+  ui.caption.textContent=!(active||practice)?'':trial.meditating?'打坐聚靈中':trial.dash>0?'閃身免疫雷擊':trial.meditationStagger>0?'打坐被雷擊中斷':''
   if(!active&&!ending)return
   const seconds = Math.max(0,Math.ceil(STAGE_DURATION-age-1e-7))
   const restSeconds = Math.ceil(remaining ?? 0)
@@ -564,7 +619,7 @@ function draw(dt, moveAmount){
   const ending=phase==='dead'||phase==='escaped'
   const escape=phase==='escaped'?Math.max(0,1.5-endTimer):0
   avatar.position.set(x+trial.dx*escape*1.15,asleep?.46:trial.meditating?.16+.09*Math.sin(now*4):0,z+trial.dz*escape*1.15)
-  const running = (phase==='trial'||phase==='rest') && moveAmount>.08 && !trial.dash
+  const running = (phase==='trial'||phase==='rest'||phase==='practice') && moveAmount>.08 && !trial.dash
   const flailing = running || (phase==='escaped'&&endTimer>0)
   const stride = now*22
   const startled = excited || flailing
@@ -714,9 +769,9 @@ function clearInput(){
 
 addEventListener('keydown',event=>{
   if(event.ctrlKey||event.metaKey||event.altKey)return
-  if(event.code==='Space'&&ui.overlay.hidden){
+  if(event.code==='Space'&&ui.overlay.hidden&&!(event.target instanceof HTMLButtonElement)){
     event.preventDefault()
-    if(!event.repeat)trial.flash()
+    if(!event.repeat)useFlash()
   }
   if(['KeyW','KeyA','KeyS','KeyD'].includes(event.code))keys.add(event.code)
 })
@@ -762,14 +817,18 @@ ui.world.addEventListener('pointermove',event=>{
   const x=event.clientX-origin[0],y=event.clientY-origin[1]
   if(Math.hypot(x,y)<25)return
   touchMoves.delete(event.pointerId)
-  trial.flash([x,y/.8])
+  useFlash([x,y/.8])
 })
 ui.sound.addEventListener('click',()=>{
   soundOn=!soundOn
   ui.sound.textContent=soundOn?'音效開':'音效關'
   ui.sound.setAttribute('aria-pressed',String(soundOn))
 })
-ui.start.addEventListener('click',start)
+ui.start.addEventListener('click',()=>start())
+ui.replayLesson.addEventListener('click',()=>start(true))
+ui.skipLesson.addEventListener('click',endLesson)
+ui.beginTrial.addEventListener('click',endLesson)
+ui.replayLesson.hidden=!lessonSeen
 ui.start.disabled=false
 ui.start.textContent='叫我起床'
 

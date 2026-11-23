@@ -52,3 +52,13 @@ progress{width:100%;height:5px;appearance:none;border:0;background:#ffffff25}pro
 }
 #panic{position:absolute;top:0;left:0;max-width:min(170px,45vw);pointer-events:none;padding:5px 9px;border:1.5px solid #50403a;border-radius:9px;background:#ffedba;color:#332321;box-shadow:1px 3px 0 #2218158a;font-weight:900;font-size:clamp(.74rem,2.5vw,1rem);line-height:1.25;text-align:center}
 #panic::after{content:"";position:absolute;left:calc(50% - 4px);bottom:-5px;width:7px;height:7px;transform:rotate(45deg);background:inherit;border-right:1.5px solid #50403a;border-bottom:1.5px solid #50403a}
+#tutorial{position:absolute;z-index:2;top:max(12px,env(safe-area-inset-top));left:50%;transform:translateX(-50%);width:min(440px,calc(100% - 24px));padding:11px 15px;display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;background:#131f27ec;border:1px solid #e8ca8299;box-shadow:0 8px 24px #07101666;pointer-events:none}
+.lesson-copy{flex:1 1 250px}
+.lesson-copy small{color:var(--gold);font-size:.78rem}
+.lesson-copy h2{font:800 clamp(1rem,3.5vw,1.3rem) var(--serif);margin:2px 0 4px}
+.lesson-copy p{font-size:clamp(.84rem,2.2vw,.94rem);line-height:1.45;margin:0;color:#e9e2d0}
+#tutorial button,#replayLesson{pointer-events:auto;border:1px solid #e8ca8277;background:#1b2e33;color:#ffe4aa;font-weight:700;padding:7px 12px;font-size:.85rem}
+#tutorial #beginTrial{background:#ebc77e;color:#231c12}
+#tutorial button:focus-visible,#replayLesson:focus-visible{outline:3px solid #6bf4e7;outline-offset:3px}
+#replayLesson{width:100%;margin-top:6px}
+@media(max-height:500px) and (min-width:650px){.has-ending #replayLesson{grid-column:1}}

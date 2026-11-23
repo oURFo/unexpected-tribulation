@@ -59,7 +59,8 @@ export class Trial {
     this.timers = []
   }
 
-  intro() {
+  intro(practice = false) {
+    this.practiceAfterIntro = practice
     this.phase = 'intro'
     this.remaining = 3
   }
@@ -80,7 +81,7 @@ export class Trial {
   }
 
   flash(direction) {
-    if (!['trial', 'rest'].includes(this.phase) || !this.charges || this.dash) return
+    if (!['trial', 'rest', 'practice'].includes(this.phase) || !this.charges || this.dash) return
     const [x, z] = direction ?? [this.dx, this.dz]
     const length = Math.hypot(x, z)
     if (!length) return
@@ -213,7 +214,7 @@ export class Trial {
       orb.x += x * fraction
       orb.z += z * fraction
     }
-    if (!this.orbs.some(orb => Math.hypot(orb.x,orb.z) >= 14 && Math.hypot(orb.x,orb.z) <= RADIUS)) {
+    if (this.phase !== 'practice' && !this.orbs.some(orb => Math.hypot(orb.x,orb.z) >= 14 && Math.hypot(orb.x,orb.z) <= RADIUS)) {
       this.refill()
     }
   }
@@ -223,11 +224,15 @@ export class Trial {
       const previous = this.remaining
       this.remaining -= dt
       if (previous > 1.75 && this.remaining <= 1.75) this.events.push({type:'wake'})
-      if (this.remaining <= 0) this.beginStage()
+      if (this.remaining <= 0) {
+        if (this.practiceAfterIntro) this.phase = 'practice'
+        else this.beginStage()
+      }
       return
     }
-    if (!['trial','rest'].includes(this.phase)) return
-    this.elapsed += dt
+    const practice = this.phase === 'practice'
+    if (!practice && !['trial','rest'].includes(this.phase)) return
+    if (!practice) this.elapsed += dt
     const moving = Math.hypot(mx,mz)
     const immune = this.dash > 0
     if (this.charges < 3) {
@@ -252,7 +257,12 @@ export class Trial {
       this.x += this.dx * speed * Math.min(1,moving) * dt
       this.z += this.dz * speed * Math.min(1,moving) * dt
     }
-    if (Math.hypot(this.x,this.z) > RADIUS + BODY_RADIUS) {
+    const distanceFromCenter = Math.hypot(this.x,this.z)
+    if (practice && distanceFromCenter > RADIUS - BODY_RADIUS) {
+      const scale = (RADIUS - BODY_RADIUS) / distanceFromCenter
+      this.x *= scale
+      this.z *= scale
+    } else if (distanceFromCenter > RADIUS + BODY_RADIUS) {
       this.finish(true)
       return
     }
@@ -262,6 +272,7 @@ export class Trial {
     if (this.phase === 'trial') this.strikes(dt, immune)
     if (this.phase === 'dead') return
     this.collect(dt)
+    if (practice) return
     if (this.phase === 'rest') {
       this.remaining -= dt
       if (this.remaining <= 1e-7) {
