@@ -24,6 +24,7 @@ export const TYPES = [
   { radius: 2.6, damage: 12, color: 0xff69c6 },
 ]
 export const goal = stage => 60 + 20 * stage
+const minimumTrial = REALMS.map(row => row[5] ? row[5] + row[6] + .1 : 6)
 
 export function pointInRing(min, max, random = Math.random) {
   const angle = random() * 2 * Math.PI
@@ -217,7 +218,7 @@ export class Trial {
       }
     } else {
       this.age += dt
-      if (!this.completed && this.age >= 6 && this.xp >= goal(this.stage)) {
+      if (!this.completed && this.age >= minimumTrial[this.stage] && this.xp >= goal(this.stage)) {
         this.xp -= goal(this.stage)
         this.completed = this.stage === REALMS.length - 1
         this.bolts.length = 0
@@ -228,4 +229,3 @@ export class Trial {
     }
   }
 }
-
