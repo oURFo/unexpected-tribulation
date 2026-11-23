@@ -315,7 +315,7 @@ function updateFlyby(){
   ui.npcTalk.hidden=progress<.12||progress>.88||x<0||x>innerWidth||y<0||y>innerHeight
   if(!ui.npcTalk.hidden){
     const margin=Math.min(innerWidth/2,112)
-    ui.npcTalk.style.transform='translate('+clamp(x,margin,innerWidth-margin)+'px,'+Math.max(128,y-8)+'px) translate(-50%, -100%)'
+    ui.npcTalk.style.transform='translate('+clamp(x,margin,innerWidth-margin)+'px,'+Math.max(176,y-8)+'px) translate(-50%, -100%)'
   }
 }
 
@@ -771,7 +771,7 @@ function draw(dt, moveAmount){
   eyes.forEach(eye=>eye.scale.set(1,asleep?.25:startled?1.48:1,1))
   sweat.visible=startled
   sweat.position.y=1.83+.13*Math.sin(stride)
-  if(running&&phase==='trial'&&now>=nextChatter)panic()
+  if(running&&!shivering&&phase==='trial'&&now>=nextChatter)panic()
   puppet.scale.setScalar(1.14*(alive?1:clamp(endTimer/.85,0,1)))
   avatar.visible=alive||endTimer>0
   faceColors.forEach(([material,color])=>material.color.copy(color).multiplyScalar(scorch>0?.19:1))
@@ -885,7 +885,7 @@ function draw(dt, moveAmount){
     projected.set(avatar.position.x,2.95+puppet.position.y,avatar.position.z).project(camera)
     ui.shiverBuff.style.transform='translate('+((projected.x+1)*innerWidth/2)+'px,'+((1-projected.y)*innerHeight/2)+'px) translate(-50%, -100%)'
   }
-  ui.panic.hidden=now>=chatterUntil
+  ui.panic.hidden=shivering||now>=chatterUntil
   if(!ui.panic.hidden){
     projected.set(avatar.position.x,3.5+puppet.position.y,avatar.position.z).project(camera)
     const screenX=clamp((projected.x+1)*innerWidth/2,96,innerWidth-96)
