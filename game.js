@@ -1,6 +1,6 @@
 import * as T from './vendor/three.module.min.js'
 import {RADIUS, REALMS, TYPES, Trial, goal, MAX_LEVEL, STAGE_DURATION, SHIVER_LEVEL, SHIVER_DURATION} from './rules.js?v=8'
-import {drawEnding, endings} from './endings.js?v=3'
+import {endings} from './endings.js?v=9'
 
 const $ = id => document.getElementById(id)
 const ui = Object.fromEntries(['world','tutorial','lessonStep','lessonTitle','lessonHint','orbLesson','skipLesson','beginTrial','replayLesson','hud','phase','realm','hp','life','xp','level','experience','stageTime','next','charges','chargeTime','shiverStatus','overlay','start','eyebrow','title','description','ending','endingArt','endingTitle','results','controls','notice','caption','panic','joystick','stick','flash','sound'].map(id => [id,$(id)]))
@@ -534,10 +534,11 @@ function summary(){
   ui.overlay.hidden=false
   ui.eyebrow.textContent=died?'渡劫失敗':'渡劫中止'
   ui.title.textContent=died?'灰飛煙滅':'留得青山在'
-  const [endingTitle, escapedLine, deathLine] = endings[trial.stage]
+  const [endingTitle, escapedLine, deathLine, motif, artwork] = endings[trial.stage]
   ui.endingTitle.textContent=endingTitle
   ui.description.textContent=died?deathLine:escapedLine
-  drawEnding(ui.endingArt,trial.stage,died)
+  ui.endingArt.alt=endingTitle+'插圖，畫著修士與'+motif
+  ui.endingArt.src='./art/'+artwork+'.webp'
   ui.ending.hidden=false
   ui.overlay.classList.add('has-ending')
   ui.overlay.scrollTop=0
