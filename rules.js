@@ -4,27 +4,31 @@ export const REST = 5
 export const STAGE_DURATION = 30
 export const MAX_LEVEL = 15
 const ORBS_PER_BATCH = 12
+const START_HP = 70
+const LEVEL_HP = 10
+const HEAL_HP = 10
+const MEDITATION_STAGGER = .65
 export const REALMS = [
-  ['煉氣期', 3.5, 1.8, 2.5, 2.0],
-  ['築基期', 3.3, 1.7, 2.3, 1.9],
-  ['金丹期', 3.1, 1.6, 2.1, 1.8],
-  ['元嬰期', 2.9, 1.5, 1.9, 1.7],
-  ['化神期', 2.7, 1.4, 1.8, 1.6, 8.0, 1.8],
-  ['煉虛期', 2.5, 1.35, 1.6, 1.5, 7.5, 1.7],
-  ['合體期', 2.3, 1.3, 1.5, 1.45, 7.0, 1.6],
-  ['大乘期', 2.1, 1.25, 1.3, 1.4, 6.5, 1.55],
-  ['渡劫期', 1.9, 1.2, 1.2, 1.35, 6.0, 1.5],
-  ['散仙', 1.75, 1.15, 1.1, 1.3, 5.5, 1.45],
-  ['地仙', 1.6, 1.1, 1.0, 1.25, 5.0, 1.4],
-  ['天仙', 1.45, 1.05, 0.9, 1.2, 4.5, 1.35],
-  ['金仙', 1.3, 1.0, 0.8, 1.15, 4.0, 1.3],
-  ['太乙金仙', 1.15, 0.95, 0.7, 1.1, 3.5, 1.25],
-  ['大羅金仙', 1.0, 0.9, 0.6, 1.05, 3.0, 1.2],
+  ['煉氣期', 2.10, 1.50, 1.50, 1.75],
+  ['築基期', 2.00, 1.46, 1.42, 1.70],
+  ['金丹期', 1.90, 1.42, 1.34, 1.65],
+  ['元嬰期', 1.80, 1.38, 1.26, 1.60],
+  ['化神期', 1.70, 1.34, 1.18, 1.55, 6.5, 1.70],
+  ['煉虛期', 1.60, 1.30, 1.10, 1.50, 6.1, 1.65],
+  ['合體期', 1.52, 1.26, 1.02, 1.45, 5.7, 1.60],
+  ['大乘期', 1.44, 1.22, 0.94, 1.40, 5.3, 1.55],
+  ['渡劫期', 1.36, 1.18, 0.86, 1.35, 4.9, 1.50],
+  ['散仙',   1.28, 1.14, 0.78, 1.30, 4.5, 1.45],
+  ['地仙',   1.20, 1.10, 0.72, 1.25, 4.1, 1.40],
+  ['天仙',   1.12, 1.06, 0.66, 1.20, 3.7, 1.35],
+  ['金仙',   1.04, 1.02, 0.60, 1.15, 3.3, 1.30],
+  ['太乙金仙', 0.96, 0.98, 0.54, 1.10, 2.9, 1.25],
+  ['大羅金仙', 0.88, 0.94, 0.48, 1.05, 2.5, 1.20],
 ]
 export const TYPES = [
-  { radius: 2.2, damage: 25, color: 0xffce58 },
-  { radius: 1.8, damage: 20, color: 0xa1e5ff },
-  { radius: 2.6, damage: 12, color: 0xff69c6 },
+  { radius: 2.2, damage: 32, growth: 3, color: 0xffce58 },
+  { radius: 1.8, damage: 24, growth: 2, color: 0xa1e5ff },
+  { radius: 2.6, damage: 12, growth: 2, unlockStage: 4, color: 0xff69c6 },
 ]
 export const goal = level => 60 + 35 * (level - 1)
 
@@ -41,13 +45,13 @@ export class Trial {
     this.stage = 0
     this.level = 1
     this.xp = 0
-    this.hp = this.maxHp = 100
+    this.hp = this.maxHp = START_HP
     this.charges = 3
     this.chargeTime = 0
     this.elapsed = this.age = this.hits = this.steps = 0
     this.x = this.z = this.dx = 0
     this.dz = 1
-    this.idle = this.dash = 0
+    this.idle = this.dash = this.meditationStagger = 0
     this.meditating = false
     this.events = []
     this.orbs = []
@@ -116,9 +120,13 @@ export class Trial {
         bolt.ticks++
         this.events.push({type:'strike', bolt})
         if (immune || Math.hypot(this.x-bolt.x,this.z-bolt.z) > type.radius + BODY_RADIUS) continue
-        this.hp = Math.max(0, this.hp - type.damage)
+        const damage = type.damage + type.growth * (this.stage - (type.unlockStage ?? 0))
+        this.hp = Math.max(0, this.hp - damage)
         this.hits++
-        this.events.push({type:'hurt'})
+        this.idle = 0
+        this.meditating = false
+        this.meditationStagger = MEDITATION_STAGGER
+        this.events.push({type:'hurt', damage})
         if (!this.hp) {
           this.finish(false)
           return
@@ -134,8 +142,8 @@ export class Trial {
     while (this.level < MAX_LEVEL && this.xp >= goal(this.level)) {
       this.xp -= goal(this.level)
       this.level++
-      this.maxHp += 15
-      this.hp += 15
+      this.maxHp += LEVEL_HP
+      this.hp += LEVEL_HP
     }
     if (this.level === MAX_LEVEL) this.xp = 0
   }
@@ -159,7 +167,7 @@ export class Trial {
         orb.z += z * Math.min(1, dt * 16)
         if (orb.intake < .12 || distance > .12) continue
         this.orbs.splice(i,1)
-        if (orb.kind === 1) this.hp = Math.min(this.maxHp, this.hp + 15)
+        if (orb.kind === 1) this.hp = Math.min(this.maxHp, this.hp + HEAL_HP)
         else if (orb.kind === 2 && this.charges < 3) {
           this.charges++
           if (this.charges === 3) this.chargeTime = 0
@@ -216,7 +224,8 @@ export class Trial {
       this.finish(true)
       return
     }
-    this.idle = moving || immune ? 0 : this.idle + dt
+    this.meditationStagger = Math.max(0, this.meditationStagger - dt)
+    this.idle = moving || immune || this.meditationStagger ? 0 : this.idle + dt
     this.meditating = this.idle >= .3
     if (this.phase === 'trial') this.strikes(dt, immune)
     if (this.phase === 'dead') return

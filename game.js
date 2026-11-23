@@ -1,5 +1,5 @@
 import * as T from './vendor/three.module.min.js'
-import {RADIUS, REALMS, TYPES, Trial, goal, MAX_LEVEL, STAGE_DURATION} from './rules.js?v=3'
+import {RADIUS, REALMS, TYPES, Trial, goal, MAX_LEVEL, STAGE_DURATION} from './rules.js?v=4'
 import {drawEnding, endings} from './endings.js?v=3'
 
 const $ = id => document.getElementById(id)
@@ -354,7 +354,7 @@ function consumeEvents(){
       scorch=.62
       shake=.3
       sound('hurt')
-      label(trial.x,trial.z,'⚡ 焦了！')
+      label(trial.x,trial.z,'⚡ −'+event.damage+' 氣血')
     } else if(event.type==='dash'){
       label(event.x,event.z,'閃身步')
       sound('dash')
@@ -442,7 +442,7 @@ function hud(){
   } else if(ending){
     setNotice(phase==='dead'?'灰飛煙滅':'留得青山在')
   } else setNotice('')
-  ui.caption.textContent=!active?'':trial.meditating?'打坐聚靈中':trial.dash>0?'閃身免疫雷擊':''
+  ui.caption.textContent=!active?'':trial.meditating?'打坐聚靈中':trial.dash>0?'閃身免疫雷擊':trial.meditationStagger>0?'打坐被雷擊中斷':''
   if(!active&&!ending)return
   const seconds = Math.max(0,Math.ceil(STAGE_DURATION-age-1e-7))
   const restSeconds = Math.ceil(remaining ?? 0)

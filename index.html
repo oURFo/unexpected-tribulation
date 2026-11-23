@@ -13,7 +13,7 @@
 <header id="hud" hidden>
 <section class="panel health">
 <div class="health-row"><small>氣血</small><strong id="hp"></strong></div>
-<progress id="life" max="100" aria-label="氣血"></progress>
+<progress id="life" max="70" aria-label="氣血"></progress>
 <div class="health-row experience"><strong id="level"></strong><small id="experience"></small></div>
 <progress id="xp" aria-label="等級經驗"></progress>
 </section>
@@ -41,7 +41,7 @@
 </section>
 </main>
 <script type="module">
-import('./game.js?v=3').catch(error => {
+import('./game.js?v=4').catch(error => {
   console.error(error)
   document.querySelector('#description').textContent = '無法載入 3D 場景。請確認瀏覽器支援 WebGL，並重新整理。'
   document.querySelector('#start').textContent = '載入失敗'
