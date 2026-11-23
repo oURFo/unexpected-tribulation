@@ -199,6 +199,8 @@ const face = new T.Group()
 puppet.add(face)
 place(face,solid(new T.IcosahedronGeometry(.46,1),0xffce97),0,1.66,.02)
 const hat=place(face,solid(new T.CylinderGeometry(.29,.43,.27,7),0x233343),0,1.99,0)
+const hatFront=place(hat,solid(new T.BoxGeometry(.48,.055,.27),0x293b4c),0,-.10,.40)
+place(hatFront,solid(new T.BoxGeometry(.18,.035,.08),0xeac178),0,.04,.085)
 const knot=place(face,solid(new T.CylinderGeometry(.07,.15,.13,6),0x263747),0,2.19,-.03)
 const feet = [-.22,.22].map(x=>place(puppet,solid(new T.BoxGeometry(.27,.26,.40),0x273843),x,.22,.08))
 const sleeves = [-.48,.48].map(x=>{
@@ -217,6 +219,43 @@ const mouth=place(face,solid(new T.SphereGeometry(1,10,8),0x462a2c),0,1.54,.43)
 const sweat=place(face,new T.Mesh(new T.IcosahedronGeometry(.10,0),new T.MeshBasicMaterial({color:0xb9ecff})),.45,1.83,.39)
 const faceColors=[]
 puppet.traverse(obj=>{if(obj.isMesh)faceColors.push([obj.material,obj.material.color.clone()])})
+const avatarParts=[]
+avatar.traverse(part=>avatarParts.push(part))
+const dashGhosts=Array.from({length:3},()=>{
+  const model=avatar.clone()
+  const material=new T.MeshBasicMaterial({color:0x8adbd1,transparent:true,depthWrite:false})
+  const parts=[]
+  model.traverse(part=>{
+    parts.push(part)
+    if(part.isMesh)part.material=material
+  })
+  model.visible=false
+  scene.add(model)
+  return {model,material,parts,time:-Infinity}
+})
+let nextGhost=0
+let ghostIndex=0
+
+function drawDashGhosts(dashing){
+  if(dashing&&now>=nextGhost){
+    const ghost=dashGhosts[ghostIndex]
+    ghostIndex=(ghostIndex+1)%dashGhosts.length
+    ghost.time=now
+    ghost.parts.forEach((part,index)=>{
+      const source=avatarParts[index]
+      part.position.copy(source.position)
+      part.quaternion.copy(source.quaternion)
+      part.scale.copy(source.scale)
+      part.visible=source.visible
+    })
+    nextGhost=now+.085
+  }
+  for(const ghost of dashGhosts){
+    const age=now-ghost.time
+    ghost.model.visible=age<.32
+    if(ghost.model.visible)ghost.material.opacity=.23*(1-age/.32)
+  }
+}
 const aura = flatRing(.73,.85,0x8fffd2,.7)
 scene.add(aura)
 const shiverAura=flatRing(.95,1.12,0x92fbff,.84)
@@ -626,6 +665,8 @@ function start(forceLesson=false){
   smoke.length=strikes.length=0
   labels.splice(0).forEach(label=>label.element.remove())
   experienceSparks.splice(0).forEach(spark=>spark.element.remove())
+  dashGhosts.forEach(ghost=>{ghost.time=-Infinity;ghost.model.visible=false})
+  nextGhost=0
   flare=scorch=endTimer=0
   collectedAt=nextGather=nextTrail=nextChatter=chatterUntil=0
   lastLine=-1
@@ -806,7 +847,10 @@ function draw(dt, moveAmount){
   const stride = now*22
   const startled = excited || flailing || shivering
   const dashSide=trial.dash>1e-7?(trial.steps%2===0?1:-1):0
-  avatar.rotation.y=Math.atan2(trial.dx,trial.dz)+dashSide*Math.PI/2
+  // The mesh looks across the travel vector. Flash physics still uses dx and dz.
+  const facingX=dashSide?dashSide*trial.dz:trial.dx
+  const facingZ=dashSide?-dashSide*trial.dx:trial.dz
+  avatar.rotation.y=Math.atan2(facingX,facingZ)
   puppet.rotation.set(asleep?-1.45:excited?-.18:flailing?.23:0,0,flailing?.18*Math.sin(stride*.68):0)
   puppet.position.y=excited?Math.max(0,.65*Math.sin((1.75-remaining)*6)):flailing?.15*Math.abs(Math.sin(stride)):0
   face.rotation.y=flailing?.35*Math.sin(stride*.34):0
@@ -823,30 +867,34 @@ function draw(dt, moveAmount){
   faceColors.forEach(([material,color])=>material.color.copy(color).multiplyScalar(scorch>0?.19:1))
   feet.forEach((foot,i)=>{
     const swing=Math.sin(stride+i*Math.PI)
-    foot.position.x=(i===0?-1:1)*(dashSide?.38:.22)
+    foot.position.x=(i===0?-1:1)*.22
     foot.position.z=trial.meditating?.30:.08+(flailing?.38*swing:0)
     foot.position.y=trial.meditating?.40:.22+(flailing?.38*Math.max(swing,0):0)
-    foot.rotation.y=(i===0?1:-1)*(trial.meditating?.8:flailing?.29:0)
-    foot.rotation.x=flailing?.6*swing:0
+    const footYaw=(i===0?1:-1)*(trial.meditating?.8:flailing?.29:0)
+    foot.rotation.set(flailing?.6*swing:0,footYaw,0)
   })
   sleeves.forEach((s,i)=>{
     const side=i===0?-1:1
+    s.position.x=side*.48
     s.rotation.x=trial.meditating?-.9:flailing?-.55+.76*Math.sin(stride*.82+i*2.8):0
     s.rotation.z=side*(startled?1.04+.42*Math.sin(stride+i*1.5):.25)
   })
   if(dashSide){
-    puppet.rotation.set(-.08,0,dashSide*.32)
-    puppet.position.y=.08+.12*Math.sin(Math.PI*clamp(trial.dash/.25,0,1))
+    puppet.rotation.set(0,0,dashSide*.43)
+    puppet.position.y=.07+.22*Math.sin(Math.PI*clamp(trial.dash/.25,0,1))
     feet.forEach((foot,i)=>{
-      foot.position.y=i===(dashSide>0?0:1)?.30:.20
-      foot.rotation.y=dashSide*.42
+      const side=i===0?-1:1
+      const leading=side===-dashSide
+      foot.position.set(side*(leading?.72:.34),leading?.36:.18,leading?.15:-.08)
+      foot.rotation.set(0,0,side*.15)
     })
     sleeves.forEach((s,i)=>{
-      s.rotation.z=(i===0?-1:1)*1.10
-      s.rotation.x=-.45+dashSide*(i===0?-.25:.25)
+      const side=i===0?-1:1
+      s.position.x=side*.59
+      s.rotation.set(-.18,0,side*(side===-dashSide?1.40:1.10))
     })
   }
-  if(shivering){
+  if(shivering&&!dashSide){
     const shake=Math.sin(now*56)
     const shimmy=Math.cos(now*47)
     puppet.position.y=.08+.14*Math.abs(shake)
@@ -864,6 +912,7 @@ function draw(dt, moveAmount){
   shiverAura.scale.setScalar(1.12+.22*Math.sin(now*22))
   robe.position.y=trial.meditating?.72:.89
   belt.position.y=trial.meditating?.64:.79
+  drawDashGhosts(Boolean(dashSide))
   shadow.visible=avatar.visible
   shadow.position.set(avatar.position.x,.083,avatar.position.z)
   aura.visible=trial.meditating
