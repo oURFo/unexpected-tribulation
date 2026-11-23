@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#142328">
+<title>沒預料到我今天渡劫</title>
+<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+<main id="game" aria-label="沒預料到我今天渡劫">
+<div id="world"></div>
+<header id="hud" hidden>
+<section class="panel health"><small>氣血</small><strong id="hp"></strong><progress id="life" max="100"></progress></section>
+<section class="panel realm"><small id="phase"></small><strong id="realm"></strong><progress id="xp"></progress><small id="next"></small></section>
+<section class="panel steps"><small>閃身步</small><div id="charges"></div><small id="chargeTime"></small></section>
+</header>
+<button id="sound" aria-label="切換音效" aria-pressed="true">音效開</button>
+<div id="notice" aria-live="polite"></div>
+<div id="caption"></div>
+<div id="joystick" hidden><div id="stick"></div></div>
+<div id="flash"></div>
+<section id="overlay">
+<div class="card">
+<p class="eyebrow" id="eyebrow">UNEXPECTED TRIBULATION</p>
+<h1 id="title">沒預料到我<br>今天渡劫</h1>
+<p id="description">天雷落山，睡意全消。躲雷、打坐聚靈，撐不住就踏出雷陣。</p>
+<div id="results"></div>
+<button id="start" disabled>載入山頂中…</button>
+<p id="controls"><span class="desktop">WASD 移動 · 空白鍵閃身</span><span class="touch">左下搖桿移動 · 其餘區域滑動閃身</span><br>停下打坐才會吸收靈氣</p>
+</div>
+</section>
+</main>
+<script type="module">
+import('./game.js').catch(error => {
+  console.error(error)
+  document.querySelector('#description').textContent = '無法載入 3D 場景。請確認瀏覽器支援 WebGL，並重新整理。'
+  document.querySelector('#start').textContent = '載入失敗'
+})
+</script>
+</body>
+</html>

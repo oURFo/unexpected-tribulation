@@ -1,0 +1,695 @@
+import * as T from './vendor/three.module.min.js'
+import {BODY_RADIUS, RADIUS, REALMS, TYPES, Trial, goal} from './rules.js'
+
+const $ = id => document.getElementById(id)
+const ui = Object.fromEntries(['world','hud','phase','realm','hp','life','xp','next','charges','chargeTime','overlay','start','eyebrow','title','description','results','controls','notice','caption','joystick','stick','flash','sound'].map(id => [id,$(id)]))
+const clamp = T.MathUtils.clamp
+const tau = Math.PI * 2
+const colors = [0xfff2c9, 0x81ffa7, 0x66c8ff]
+const coarse = matchMedia('(pointer: coarse)')
+const renderer = new T.WebGLRenderer({antialias: !coarse.matches, powerPreference:'high-performance'})
+renderer.setPixelRatio(Math.min(devicePixelRatio, coarse.matches ? 1.4 : 1.8))
+renderer.outputColorSpace = T.SRGBColorSpace
+ui.world.append(renderer.domElement)
+
+const scene = new T.Scene()
+scene.background = new T.Color(0x81918e)
+scene.fog = new T.FogExp2(0x81918e,.009)
+const light = new T.HemisphereLight(0xe0eee3,0x585555,2.2)
+scene.add(light)
+const sun = new T.DirectionalLight(0xffe0af,2.6)
+sun.position.set(-18,35,12)
+scene.add(sun)
+const camera = new T.PerspectiveCamera(42,1,.1,270)
+const target = new T.Vector3()
+const projected = new T.Vector3()
+const dummy = new T.Object3D()
+const floor = new T.Group()
+scene.add(floor)
+
+function solid(geometry,color,flatShading=true) {
+  return new T.Mesh(geometry,new T.MeshStandardMaterial({color,flatShading,roughness:.92}))
+}
+function place(parent,mesh,x,y,z) {
+  mesh.position.set(x,y,z)
+  parent.add(mesh)
+  return mesh
+}
+function flatRing(inner,outer,color,opacity=1) {
+  const ring = new T.Mesh(new T.RingGeometry(inner,outer,96),new T.MeshBasicMaterial({
+    color, side:T.DoubleSide, transparent:opacity<1,opacity,depthWrite:false,
+  }))
+  ring.rotation.x = -Math.PI/2
+  return ring
+}
+const island = solid(new T.CylinderGeometry(24,16,12,64,3),0x475d52)
+place(floor,island,0,-6.15,0)
+place(floor,solid(new T.CylinderGeometry(23.95,24,.32,64),0x607c62),0,-.15,0)
+place(floor,solid(new T.CylinderGeometry(19.94,19.94,.025,96),0x526c63),0,.024,0)
+place(floor,flatRing(19.88,20.025,0xffd991),0,.065,0)
+place(floor,flatRing(19.40,19.48,0xd5b978,.65),0,.063,0)
+place(floor,flatRing(18.35,18.41,0xd5b978,.50),0,.061,0)
+place(floor,flatRing(3.0,3.08,0xd5b978,.64),0,.062,0)
+const barrier = new T.Mesh(new T.CylinderGeometry(RADIUS,RADIUS,.5,96,1,true),
+  new T.MeshBasicMaterial({color:0xffd991,side:T.DoubleSide,transparent:true,opacity:.13,depthWrite:false}))
+place(floor,barrier,0,.26,0)
+
+let seed=103
+function rng() {
+  seed=(1664525*seed+1013904223)>>>0
+  return seed/4294967296
+}
+
+const pattern = new T.CanvasTexture(makePattern())
+pattern.colorSpace=T.SRGBColorSpace
+pattern.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy())
+const sigil = new T.Mesh(new T.PlaneGeometry(39,39),new T.MeshBasicMaterial({
+  map:pattern,transparent:true,depthWrite:false,opacity:.83,
+}))
+sigil.rotation.x=-Math.PI/2
+place(floor,sigil,0,.074,0)
+function makePattern() {
+  const canvas=document.createElement('canvas')
+  canvas.width=canvas.height=1024
+  const c=canvas.getContext('2d')
+  c.translate(512,512)
+  c.strokeStyle='#e6c987'
+  c.fillStyle='#eed49a'
+  c.lineWidth=2
+  for (const n of [8, 4]) {
+    c.beginPath()
+    for(let i=0;i<=n;i++){
+      const a=tau*i/n+Math.PI/8
+      c.lineTo(474*Math.cos(a),474*Math.sin(a))
+    }
+    c.stroke()
+  }
+  for(let i=0;i<8;i++){
+    c.save()
+    c.rotate(tau*i/8)
+    c.translate(0,-456)
+    for(let j=0;j<3;j++){
+      if((i>>j)&1)c.fillRect(-21,j*11,42,4)
+      else {
+        c.fillRect(-21,j*11,17,4)
+        c.fillRect(4,j*11,17,4)
+      }
+    }
+    c.restore()
+  }
+  c.beginPath()
+  c.arc(0,0,53,0,tau)
+  c.stroke()
+  c.beginPath()
+  c.arc(0,0,53,-Math.PI/2,Math.PI/2)
+  c.arc(0,26.5,26.5,Math.PI/2,-Math.PI/2,true)
+  c.arc(0,-26.5,26.5,Math.PI/2,-Math.PI/2)
+  c.fill()
+  c.fillStyle='#526c63'
+  c.beginPath()
+  c.arc(0,26,7,0,tau)
+  c.fill()
+  c.fillStyle='#eed49a'
+  c.beginPath()
+  c.arc(0,-26,7,0,tau)
+  c.fill()
+  return canvas
+}
+for (let i=0;i<17;i++){
+  const a=i*tau/17
+  const r=56+rng()*85
+  const mountain=solid(new T.ConeGeometry(8+rng()*20,22+rng()*27,5),new T.Color().setHSL(.45,.13,.32+rng()*.14))
+  mountain.rotation.z=(rng()-.5)*.25
+  place(scene,mountain,Math.cos(a)*r,-21-rng()*19,Math.sin(a)*r)
+}
+for (let i=0;i<34;i++){
+  const a=rng()*tau
+  const r=21.1+rng()*2.15
+  const stone=solid(new T.DodecahedronGeometry(.35+rng()*.65,0),i%3===0?0x8a9982:0x495d58)
+  stone.scale.y=.5+rng()*.5
+  stone.rotation.set(rng(),rng()*6,rng())
+  place(floor,stone,Math.cos(a)*r,.17,Math.sin(a)*r)
+}
+for(const [x,z,s] of [[-21,5,1.1],[18,-12,.8],[9,-20,.9],[-18,-12,.67]]){
+  const tree = new T.Group()
+  const trunk=place(tree,solid(new T.CylinderGeometry(.12,.24,3.3,6),0x534b38),0,1.65,0)
+  trunk.rotation.z=.14
+  for(let i=0;i<4;i++){
+    const foliage=place(tree,solid(new T.IcosahedronGeometry(1,0),i%2?0x365a4c:0x52765e), Math.sin(i*2)*.55,2+i*.42,0)
+    foliage.scale.set(1.8-i*.26,.45,1.35-i*.18)
+  }
+  tree.scale.setScalar(s)
+  place(floor,tree,x,0,z)
+}
+
+function mistTexture(){
+  const canvas=document.createElement('canvas')
+  canvas.width=256; canvas.height=128
+  const c=canvas.getContext('2d')
+  for(let i=0;i<8;i++){
+    const x=45+i*23
+    const y=50+Math.sin(i*1.8)*17
+    const r=35+rng()*20
+    const gradient=c.createRadialGradient(x,y,0,x,y,r)
+    gradient.addColorStop(0,'rgba(255,255,255,.52)')
+    gradient.addColorStop(1,'rgba(255,255,255,0)')
+    c.fillStyle=gradient
+    c.fillRect(x-r,y-r,r*2,r*2)
+  }
+  return new T.CanvasTexture(canvas)
+}
+const mistMap=mistTexture()
+const clouds = []
+for (let i=0;i<36;i++){
+  const storm=i>=20
+  const a=i*tau/(storm?16:20)
+  const cloud=new T.Sprite(new T.SpriteMaterial({map:mistMap,color:storm?0x34454f:0xe3f4e8,
+    transparent:true,opacity:storm?.8:.65,depthWrite:false}))
+  cloud.scale.set(22+rng()*25,8+rng()*5,1)
+  scene.add(cloud)
+  clouds.push({cloud,storm,a,r:storm?25+rng()*37:32+rng()*75,y:storm?13+rng()*15:-6-rng()*10})
+}
+
+const avatar = new T.Group()
+const puppet = new T.Group()
+avatar.add(puppet)
+scene.add(avatar)
+const shadow = new T.Mesh(new T.CircleGeometry(.78,32),new T.MeshBasicMaterial({
+  color:0x162a2d,transparent:true,opacity:.42,depthWrite:false,
+}))
+shadow.rotation.x=-Math.PI/2
+scene.add(shadow)
+const robe=place(puppet,solid(new T.CylinderGeometry(.32,.59,1.04,7),0x307773),0,.89,0)
+const belt=place(puppet,solid(new T.CylinderGeometry(.415,.46,.15,7),0xe3ba70),0,.79,0)
+const head=place(puppet,solid(new T.IcosahedronGeometry(.46,1),0xffce97),0,1.66,.02)
+const hat=place(puppet,solid(new T.CylinderGeometry(.29,.43,.27,7),0x233343),0,1.99,0)
+place(puppet,solid(new T.CylinderGeometry(.07,.15,.13,6),0x263747),0,2.19,-.03)
+const feet = [-.22,.22].map(x=>place(puppet,solid(new T.BoxGeometry(.27,.26,.40),0x273843),x,.22,.08))
+const sleeves = [-.48,.48].map(x=>{
+  const sleeve=place(puppet,solid(new T.CapsuleGeometry(.17,.42,3,7),0x478b82),x,1.01,.05)
+  sleeve.rotation.z=Math.sign(x)*.25
+  return sleeve
+})
+for(const x of [-.14,.14]){
+  place(puppet,solid(new T.SphereGeometry(.046,6,5),0x2d2b30),x,1.70,.43)
+  const eyebrow=place(puppet,solid(new T.BoxGeometry(.13,.024,.026),0x42322b),x,1.79,.414)
+  eyebrow.rotation.z=Math.sign(x)*.16
+}
+place(puppet,solid(new T.ConeGeometry(.13,.27,6),0x40444a),0,1.38,.34).rotation.z=Math.PI
+const faceColors=[]
+puppet.traverse(obj=>{if(obj.isMesh)faceColors.push([obj.material,obj.material.color.clone()])})
+const aura = flatRing(.73,.85,0x8fffd2,.7)
+scene.add(aura)
+
+function instances(geometry, capacity) {
+  const mesh = new T.InstancedMesh(geometry,new T.MeshBasicMaterial(),capacity)
+  mesh.count=0
+  mesh.frustumCulled=false
+  mesh.instanceMatrix.setUsage(T.DynamicDrawUsage)
+  scene.add(mesh)
+  return mesh
+}
+function setInstance(mesh,i,x,y,z,sx,sy,sz,color,rx=0){
+  dummy.position.set(x,y,z)
+  dummy.rotation.set(rx,0,0)
+  dummy.scale.set(sx,sy,sz)
+  dummy.updateMatrix()
+  mesh.setMatrixAt(i,dummy.matrix)
+  mesh.setColorAt(i,color)
+}
+function commit(mesh,count){
+  mesh.count=count
+  mesh.instanceMatrix.needsUpdate=true
+  if(mesh.instanceColor)mesh.instanceColor.needsUpdate=true
+}
+const orbColors=colors.map(c=>new T.Color(c))
+const strikeColors=TYPES.map(t=>new T.Color(t.color))
+const orbCapacity=300
+const orbMeshes=instances(new T.IcosahedronGeometry(1,0),orbCapacity)
+const orbHalo=new T.InstancedMesh(new T.PlaneGeometry(1,1),new T.MeshBasicMaterial({
+  map:mistMap,transparent:true,opacity:.65,depthWrite:false,blending:T.AdditiveBlending,
+}),orbCapacity)
+orbHalo.count=0
+orbHalo.frustumCulled=false
+orbHalo.instanceMatrix.setUsage(T.DynamicDrawUsage)
+scene.add(orbHalo)
+const rings=instances(new T.RingGeometry(.94,1,64),64)
+const pools=instances(new T.CircleGeometry(1,40),20)
+pools.material.transparent=true
+pools.material.opacity=.24
+pools.material.depthWrite=false
+const bolts=instances(new T.CylinderGeometry(.58,1,1,5),240)
+const boltColor=new T.Color(0xffffff)
+const dashColor=new T.Color(0x70e4ca)
+const trails=instances(new T.IcosahedronGeometry(1,0),30)
+trails.material.transparent=true
+trails.material.opacity=.44
+trails.material.depthWrite=false
+const strikes=[]
+const smoke=[]
+const labels=[]
+
+let trial=new Trial()
+let now=0
+let scorch=0
+let flare=0
+let stormAmount=.18
+let shake=0
+let endTimer=0
+let nextTrail=0
+let collectedAt=0
+let hudKey=''
+let noticeKey=''
+let soundOn=true
+let soundContext
+let nextGather=0
+let lastWarning=-1
+let lastChime=-1
+const keys=new Set()
+let movePointer=null
+const touchMoves=new Map()
+const joystick={x:0,y:0}
+const chargeNodes=Array.from({length:3},()=>{
+  const node=document.createElement('span')
+  node.className='charge'
+  node.innerHTML='<i>ϟ</i>'
+  ui.charges.append(node)
+  return node
+})
+
+function sound(type,variant=0){
+  if(!soundOn||!soundContext||soundContext.state!=='running')return
+  const ctx=soundContext
+  const start=ctx.currentTime
+  if(['strike','wake','hurt','dash','warning'].includes(type)){
+    const duration={strike:.6,wake:1.15,hurt:.25,dash:.24,warning:.1}[type]
+    const buffer=ctx.createBuffer(1,Math.floor(ctx.sampleRate*duration),ctx.sampleRate)
+    const samples=buffer.getChannelData(0)
+    for(let i=0;i<samples.length;i++)samples[i]=Math.random()*2-1
+    const noise=ctx.createBufferSource()
+    const filter=ctx.createBiquadFilter()
+    const volume=ctx.createGain()
+    noise.buffer=buffer
+    filter.type=type==='dash'||type==='warning'?'bandpass':'lowpass'
+    filter.frequency.setValueAtTime(type==='dash'?1800:type==='warning'?2800:950,start)
+    filter.frequency.exponentialRampToValueAtTime(type==='dash'?350:type==='warning'?1500:80,start+duration)
+    volume.gain.setValueAtTime(type==='warning'?.035:type==='dash'?.22:.38,start)
+    volume.gain.exponentialRampToValueAtTime(.001,start+duration)
+    noise.connect(filter).connect(volume).connect(ctx.destination)
+    noise.start(start)
+    return
+  }
+  const notes=type==='breakthrough'?[392,523,659,784,1046]:type==='gather'?[146]:[523,659,880].slice(variant,variant+1)
+  notes.forEach((frequency,i)=>{
+    const time=start+i*.12
+    const duration=type==='breakthrough'?.62:type==='gather'?.32:.17
+    const osc=ctx.createOscillator()
+    const volume=ctx.createGain()
+    osc.type=type==='gather'?'sine':'triangle'
+    osc.frequency.value=frequency
+    volume.gain.setValueAtTime(.001,time)
+    volume.gain.exponentialRampToValueAtTime(type==='gather'?.026:.10,time+.03)
+    volume.gain.exponentialRampToValueAtTime(.001,time+duration)
+    osc.connect(volume).connect(ctx.destination)
+    osc.start(time)
+    osc.stop(time+duration)
+  })
+}
+
+function setNotice(main,detail=''){
+  const key=main+'|'+detail
+  if(key===noticeKey)return
+  noticeKey=key
+  ui.notice.replaceChildren()
+  if(!main)return
+  ui.notice.append(document.createTextNode(main))
+  const sub=document.createElement('span')
+  sub.textContent=detail
+  ui.notice.append(sub)
+}
+
+function label(x,z,text){
+  const element=document.createElement('div')
+  element.className='float'
+  element.textContent=text
+  $('game').append(element)
+  labels.push({element,x,z,time:now})
+}
+
+function consumeEvents(){
+  for(const event of trial.events){
+    if(event.type==='wake'){
+      flare=.8
+      shake=.8
+      sound('wake')
+    } else if(event.type==='warning'&&now-lastWarning>.15){
+      sound('warning')
+      lastWarning=now
+    } else if(event.type==='strike'){
+      strikes.push({bolt:event.bolt,time:now,seed:rng()*20})
+      flare=Math.max(flare,event.bolt.kind===2?.13:.22)
+      sound('strike')
+    } else if(event.type==='hurt'){
+      scorch=.62
+      shake=.3
+      sound('hurt')
+      label(trial.x,trial.z,'⚡ 焦了！')
+    } else if(event.type==='dash'){
+      label(event.x,event.z,'閃身步')
+      sound('dash')
+    } else if(event.type==='collect'&&now-lastChime>.045){
+      collectedAt=now
+      sound('collect',event.kind)
+      lastChime=now
+    } else if(event.type==='breakthrough'){
+      strikes.length=0
+      sound('breakthrough')
+    } else if(event.type==='dead'||event.type==='escaped'){
+      strikes.length=0
+      clearInput()
+      endTimer=1.5
+      if(event.type==='dead')scorch=2
+    }
+  }
+  trial.events.length=0
+}
+
+function start(){
+  soundContext ??= window.AudioContext ? new AudioContext() : null
+  soundContext?.resume().catch(()=>{})
+  trial=new Trial()
+  trial.intro()
+  clearInput()
+  smoke.length=strikes.length=0
+  labels.splice(0).forEach(label=>label.element.remove())
+  flare=scorch=endTimer=0
+  collectedAt=nextGather=nextTrail=0
+  stormAmount=.18
+  ui.overlay.hidden=true
+  ui.hud.hidden=true
+  ui.joystick.hidden=true
+  ui.start.blur()
+  hudKey=''
+}
+
+function summary(){
+  const died=trial.phase==='dead'
+  ui.hud.hidden=true
+  ui.joystick.hidden=true
+  ui.overlay.hidden=false
+  ui.eyebrow.textContent=died?'渡劫失敗':'渡劫中止'
+  ui.title.textContent=died?'灰飛煙滅':'留得青山在'
+  ui.description.textContent=died
+    ? '再吸一顆就好。天雷說，烤番薯也是這麼想的。'
+    : '三十六計，走為上策。明天睡飽再渡！'
+  const seconds=Math.floor(trial.elapsed)
+  const time=Math.floor(seconds/60)+' 分 '+seconds%60+' 秒'
+  const rows=[['修仙境界',REALMS[trial.stage][0]],['最終等級','Lv.'+(trial.stage+1)],
+    ['撐過時間',time],['被雷劈中',trial.hits+' 次'],['成功閃身步',trial.steps+' 次']]
+  ui.results.replaceChildren(...rows.map(([name,value])=>{
+    const div=document.createElement('div')
+    const bold=document.createElement('b')
+    bold.textContent=value
+    div.append(name,bold)
+    return div
+  }))
+  ui.start.textContent='再渡一次'
+  ui.start.focus()
+}
+
+function hud(){
+  const {phase,stage,xp,hp,maxHp,charges,chargeTime,completed,remaining}=trial
+  const active=phase==='trial'||phase==='rest'
+  const ending=(phase==='dead'||phase==='escaped')&&ui.overlay.hidden
+  ui.hud.hidden=!(active||ending)
+  ui.joystick.hidden=!(active&&coarse.matches)
+  const name=REALMS[stage][0]
+  const next=REALMS[stage+1]?.[0]
+  const upcoming=next??'極限生存'
+  if(phase==='intro'){
+    if(remaining>1.75)setNotice('呼……','山頂小睡，醒了再修仙。')
+    else setNotice('沒預料到我今天渡劫！','大陣已開 · 躲開地上的雷圈')
+  } else if(phase==='rest'){
+    if(remaining>2)setNotice(name,'渡劫完成 · 休整 '+Math.ceil(remaining)+' 秒')
+    else setNotice(upcoming+'將至',(stage===3?'解鎖連續雷 · ':'烏雲聚集 · ')+Math.ceil(remaining)+' 秒')
+  } else if(ending){
+    setNotice(phase==='dead'?'灰飛煙滅':'留得青山在')
+  } else setNotice('')
+  ui.caption.textContent=!active?'':trial.meditating?'打坐聚靈中':trial.dash>0?'閃身免疫雷擊':''
+  if(!active&&!ending)return
+  const key=[phase,stage,xp,hp,charges,completed,Math.floor(chargeTime*10)].join('|')
+  if(key===hudKey)return
+  hudKey=key
+  ui.phase.textContent=phase==='rest'?'已完成':completed?'極限生存':'當前境界'
+  ui.realm.textContent=name+' · Lv.'+(stage+1)
+  ui.hp.textContent=hp+' / '+maxHp
+  ui.life.max=maxHp
+  ui.life.value=hp
+  ui.xp.max=goal(stage)
+  ui.xp.value=completed||phase==='rest'?goal(stage):Math.min(xp,goal(stage))
+  ui.xp.setAttribute('aria-label','境界經驗 '+ui.xp.value+' / '+goal(stage))
+  ui.life.setAttribute('aria-label','氣血')
+  ui.next.textContent=next
+    ? (phase==='rest'?'即將開始 · ':'下一階 · ')+next+(stage===3?' · 解鎖連續雷':'')
+    : completed?'已達最高境界':'最高境界 · '+Math.min(xp,goal(stage))+'/'+goal(stage)+' EXP'
+  chargeNodes.forEach((node,i)=>{
+    node.classList.toggle('empty',i>=charges)
+    node.style.setProperty('--fill',(i<charges?100:i===charges?chargeTime*10:0)+'%')
+  })
+  ui.chargeTime.textContent=charges===3?'已充滿':Math.ceil(10-chargeTime)+' 秒充能'
+}
+
+const darkSky = new T.Color(0x4f626c)
+const clearSky = new T.Color(0xb1bc9d)
+function draw(dt){
+  const {x,z,phase,remaining}=trial
+  const asleep = phase==='title'||(phase==='intro'&&remaining>1.75)
+  const excited = phase==='intro'&&!asleep
+  const restSky = phase==='rest'?clamp(1-remaining/2,0,1)*.9+.08:1
+  const stormTarget = phase==='trial'?1:phase==='rest'?restSky:excited?1:.18
+  stormAmount=T.MathUtils.damp(stormAmount,stormTarget,2.8,dt)
+  scene.background.copy(clearSky).lerp(darkSky,stormAmount)
+  scene.fog.color.copy(scene.background)
+  sun.intensity=2.9-stormAmount*1.45
+  light.intensity=2.15-stormAmount*.3
+  clouds.forEach(({cloud,storm,a,r,y})=>{
+    const angle=a+now*(storm?.032:.013)
+    const distance=r+(storm?(1-stormAmount)*40:0)
+    cloud.position.set(Math.cos(angle)*distance,y,Math.sin(angle)*distance)
+    if(storm)cloud.material.opacity=.75*stormAmount
+  })
+  flare=Math.max(0,flare-dt*1.8)
+  scorch=Math.max(0,scorch-dt)
+  shake=Math.max(0,shake-dt*2.1)
+  ui.flash.style.opacity=Math.min(.64,flare)
+  const alive=phase!=='dead'
+  const ending=phase==='dead'||phase==='escaped'
+  const escape=phase==='escaped'?Math.max(0,1.5-endTimer):0
+  avatar.position.set(x+trial.dx*escape*1.15,asleep?.46:trial.meditating?.16+.09*Math.sin(now*4):0,z+trial.dz*escape*1.15)
+  avatar.rotation.y=Math.atan2(trial.dx,trial.dz)
+  puppet.rotation.set(asleep?-1.45:excited?-.18:phase==='escaped'?.45:0,0,phase==='escaped'?.16*Math.sin(now*18):0)
+  puppet.position.y=excited?Math.max(0,.65*Math.sin((1.75-remaining)*6)):escape*.12*Math.abs(Math.sin(now*17))
+  puppet.scale.setScalar(alive?1:clamp(endTimer/.85,0,1))
+  avatar.visible=alive||endTimer>0
+  faceColors.forEach(([material,color])=>material.color.copy(color).multiplyScalar(scorch>0?.19:1))
+  const walking=trial.idle===0&&!asleep
+  feet.forEach((foot,i)=>{
+    foot.position.z=trial.meditating?.30:.08+(walking?.23*Math.sin(now*16+i*Math.PI):0)
+    foot.position.y=trial.meditating?.40:.22
+    foot.rotation.y=trial.meditating?(i===0?.8:-.8):0
+  })
+  sleeves.forEach((s,i)=>s.rotation.x=trial.meditating?-.9:walking?.48*Math.sin(now*16+i*Math.PI):0)
+  robe.position.y=trial.meditating?.72:.89
+  belt.position.y=trial.meditating?.64:.79
+  shadow.visible=avatar.visible
+  shadow.position.set(avatar.position.x,.083,avatar.position.z)
+  aura.visible=trial.meditating
+  aura.position.set(x,.095,z)
+  aura.scale.setScalar(1+.13*Math.sin(now*7)+Math.max(0,.28-(now-collectedAt)))
+  if(trial.meditating&&now>nextGather){
+    sound('gather')
+    nextGather=now+.55
+  }
+  if(now>nextTrail&&(trial.dash>0||scorch>0&&avatar.visible||ending&&endTimer>0)){
+    nextTrail=now+.043
+    smoke.push({x:avatar.position.x+(rng()-.5)*.35,z:avatar.position.z+(rng()-.5)*.35,time:now,dash:trial.dash>0})
+  }
+  while(smoke.length&&now-smoke[0].time>.75)smoke.shift()
+  smoke.forEach((p,i)=>{
+    const t=now-p.time
+    const scale=(1-t/.75)*.42
+    setInstance(trails,i,p.x,.7+t*2,p.z,scale,scale*1.5,scale,p.dash?dashColor:darkSky)
+  })
+  commit(trails,smoke.length)
+  let n=0
+  for(const orb of trial.orbs){
+    if(n>=orbCapacity)break
+    const y=orb.intake>0?.8+orb.intake*4:.58+.18*Math.sin(now*4+orb.x)
+    const size=orb.intake>0?.10:.145
+    setInstance(orbMeshes,n,orb.x,y,orb.z,size,size,size,orbColors[orb.kind])
+    dummy.position.set(orb.x,y,orb.z)
+    dummy.quaternion.copy(camera.quaternion)
+    dummy.scale.setScalar(size*7)
+    dummy.updateMatrix()
+    orbHalo.setMatrixAt(n,dummy.matrix)
+    orbHalo.setColorAt(n,orbColors[orb.kind])
+    n++
+  }
+  commit(orbMeshes,n)
+  commit(orbHalo,n)
+  let warningCount=0
+  let poolCount=0
+  for(const b of trial.bolts){
+    const r=TYPES[b.kind].radius
+    if(b.age<b.warning){
+      const outer=r+(1-b.age/b.warning)*2.4
+      setInstance(rings,warningCount++,b.x,.102,b.z,r,r,1,strikeColors[b.kind],-Math.PI/2)
+      setInstance(rings,warningCount++,b.x,.109,b.z,outer,outer,1,strikeColors[b.kind],-Math.PI/2)
+    }
+    if(b.age<b.warning||b.kind===2)setInstance(pools,poolCount++,b.x,.097,b.z,r,r,1,strikeColors[b.kind],-Math.PI/2)
+  }
+  commit(rings,warningCount)
+  commit(pools,poolCount)
+  let beamCount=0
+  while(strikes.length&&now-strikes[0].time>.24)strikes.shift()
+  for(const {bolt,time,seed} of strikes){
+    let previous=new T.Vector3(bolt.x,.16,bolt.z)
+    const amount=Math.max(.1,1-(now-time)/.24)
+    for(let j=1;j<=8;j++){
+      const end=new T.Vector3(bolt.x+Math.sin(j*5+seed)*(.53+j*.14),.16+j*2.1,
+        bolt.z+Math.cos(j*3+seed)*(.32+j*.1))
+      const direction=end.clone().sub(previous)
+      dummy.position.copy(end).add(previous).multiplyScalar(.5)
+      dummy.quaternion.setFromUnitVectors(up,direction.clone().normalize())
+      dummy.scale.set(.17*amount,direction.length()+.12,.17*amount)
+      dummy.updateMatrix()
+      bolts.setMatrixAt(beamCount,dummy.matrix)
+      bolts.setColorAt(beamCount,j%3===0?strikeColors[bolt.kind]:boltColor)
+      beamCount++
+      previous=end
+    }
+  }
+  commit(bolts,beamCount)
+  target.set(x*.16,0,z*.16)
+  const offset=overview*(phase==='title'?1.07:1)
+  camera.position.set(target.x+shake*Math.sin(now*93)*.6,offset*.81,target.z+offset*.64)
+  camera.lookAt(target)
+  camera.updateMatrixWorld()
+  for(let i=labels.length-1;i>=0;i--){
+    const label=labels[i]
+    const age=now-label.time
+    if(age>=1){
+      label.element.remove()
+      labels.splice(i,1)
+      continue
+    }
+    projected.set(label.x,2.25+age*1.65,label.z).project(camera)
+    label.element.style.transform='translate('+((projected.x+1)*innerWidth/2)+'px,'+((1-projected.y)*innerHeight/2)+'px) translateX(-50%)'
+    label.element.style.opacity=1-age
+  }
+  renderer.render(scene,camera)
+}
+
+const up=new T.Vector3(0,1,0)
+let overview=62
+function resize(){
+  camera.aspect=innerWidth/innerHeight
+  overview=60*Math.max(1, .97/camera.aspect)
+  camera.updateProjectionMatrix()
+  renderer.setSize(innerWidth,innerHeight)
+}
+addEventListener('resize',resize)
+resize()
+function clearInput(){
+  keys.clear()
+  movePointer=null
+  touchMoves.clear()
+  joystick.x=joystick.y=0
+  ui.stick.style.transform=''
+}
+
+addEventListener('keydown',event=>{
+  if(event.ctrlKey||event.metaKey||event.altKey)return
+  if(event.code==='Space'&&ui.overlay.hidden){
+    event.preventDefault()
+    if(!event.repeat)trial.flash()
+  }
+  if(['KeyW','KeyA','KeyS','KeyD'].includes(event.code))keys.add(event.code)
+})
+addEventListener('keyup',event=>keys.delete(event.code))
+addEventListener('blur',clearInput)
+document.addEventListener('visibilitychange',clearInput)
+function moveStick(event){
+  const box=ui.joystick.getBoundingClientRect()
+  const r=box.width*.39
+  const x=event.clientX-box.left-box.width/2
+  const y=event.clientY-box.top-box.height/2
+  const length=Math.max(r,Math.hypot(x,y))
+  joystick.x=Math.abs(x)<4?0:x/length
+  joystick.y=Math.abs(y)<4?0:y/length
+  ui.stick.style.transform='translate('+(joystick.x*r)+'px,'+(joystick.y*r)+'px)'
+}
+ui.joystick.addEventListener('pointerdown',event=>{
+  if(movePointer!==null)return
+  movePointer=event.pointerId
+  ui.joystick.setPointerCapture(movePointer)
+  moveStick(event)
+})
+ui.joystick.addEventListener('pointermove',event=>{
+  if(event.pointerId===movePointer)moveStick(event)
+})
+for(const name of ['pointerup','pointercancel','lostpointercapture']){
+  ui.joystick.addEventListener(name,event=>{
+    if(event.pointerId!==movePointer)return
+    movePointer=null
+    joystick.x=joystick.y=0
+    ui.stick.style.transform=''
+  })
+  ui.world.addEventListener(name,event=>touchMoves.delete(event.pointerId))
+}
+ui.world.addEventListener('pointerdown',event=>{
+  if(event.pointerType==='mouse'||!ui.overlay.hidden)return
+  ui.world.setPointerCapture(event.pointerId)
+  touchMoves.set(event.pointerId,[event.clientX,event.clientY])
+})
+ui.world.addEventListener('pointermove',event=>{
+  const origin=touchMoves.get(event.pointerId)
+  if(!origin)return
+  const x=event.clientX-origin[0],y=event.clientY-origin[1]
+  if(Math.hypot(x,y)<25)return
+  touchMoves.delete(event.pointerId)
+  trial.flash([x,y/.8])
+})
+ui.sound.addEventListener('click',()=>{
+  soundOn=!soundOn
+  ui.sound.textContent=soundOn?'音效開':'音效關'
+  ui.sound.setAttribute('aria-pressed',String(soundOn))
+})
+ui.start.addEventListener('click',start)
+ui.start.disabled=false
+ui.start.textContent='叫我起床'
+
+let lastFrame=performance.now()
+let accumulator=0
+const frameStep=1/120
+renderer.setAnimationLoop(time=>{
+  const dt=clamp((time-lastFrame)/1000,0,.05)
+  lastFrame=time
+  if(document.hidden)return
+  now+=dt
+  if(endTimer>0){
+    endTimer=Math.max(0,endTimer-dt)
+    if(!endTimer)summary()
+  }
+  const dx=Number(keys.has('KeyD'))-Number(keys.has('KeyA'))+joystick.x
+  const dz=Number(keys.has('KeyS'))-Number(keys.has('KeyW'))+joystick.y
+  accumulator+=dt
+  while(accumulator>=frameStep){
+    trial.update(frameStep,dx,dz)
+    accumulator-=frameStep
+  }
+  consumeEvents()
+  hud()
+  draw(dt)
+})
+

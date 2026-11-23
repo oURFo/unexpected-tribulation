@@ -1,0 +1,30 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@500;700;900&display=swap');
+:root{color-scheme:dark;font-family:system-ui,sans-serif;color:#f9f1d7;background:#142328;--gold:#f3ce84;--serif:"Noto Serif TC","PMingLiU",serif}
+*{box-sizing:border-box}[hidden]{display:none!important}
+body{margin:0;overscroll-behavior:none}button{font:inherit;cursor:pointer}
+#game,#world,#overlay,#flash{position:fixed;inset:0}
+#world{touch-action:none}canvas{display:block;width:100%;height:100%}
+#overlay{display:grid;place-items:center;padding:18px;background:linear-gradient(90deg,#0b161edb,#0b161e20);overflow:auto}
+.card{width:min(470px,100%);padding:clamp(22px,5vw,48px);background:#101f24ee;border:1px solid #d0a96077;box-shadow:0 20px 85px #030c11aa,inset 0 0 0 5px #131f25;position:relative}
+.eyebrow{font-size:.72rem;letter-spacing:.24em;color:var(--gold)}
+h1{font:900 clamp(2.1rem,7.5vw,4.4rem)/1.18 var(--serif);margin:.3em 0 .38em;color:#ffe4aa;text-wrap:balance}
+#description{line-height:1.65;color:#decfac}#start{margin-top:12px;border:1px solid #ffe4aa;background:#ebc77e;color:#231c12;font-weight:800;padding:12px 23px;width:100%}
+#start:focus-visible,#sound:focus-visible{outline:3px solid #6bf4e7;outline-offset:3px}
+#controls{color:#b9c9c7;font-size:.84rem;line-height:1.55;margin-bottom:0}.touch{display:none}
+#results{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;font-size:.9rem}#results div{padding:8px;background:#ffffff0a}#results b{display:block;color:var(--gold);font-size:1.1rem}
+#hud{position:absolute;top:max(12px,env(safe-area-inset-top));left:12px;right:12px;display:grid;grid-template-columns:1fr 1.5fr 1fr;gap:8px;align-items:start;pointer-events:none}
+.panel{background:#101b23dc;border:1px solid #e8ca8266;padding:8px 12px;display:grid;gap:5px;max-width:220px;min-width:0}.panel small{font-size:clamp(.67rem,2vw,.84rem);color:#e9d9ae}.panel strong{font-family:var(--serif);font-size:clamp(.86rem,3vw,1.35rem)}.realm{justify-self:center;text-align:center;width:min(100%,262px);max-width:none}.steps{justify-self:end;text-align:right}
+progress{width:100%;height:5px;appearance:none;border:0;background:#ffffff25}progress::-webkit-progress-bar{background:#ffffff25}progress::-webkit-progress-value{background:#ffd683}progress::-moz-progress-bar{background:#ffd683}#life::-webkit-progress-value{background:#fa9277}#life::-moz-progress-bar{background:#fa9277}
+#charges{display:flex;gap:4px;justify-content:flex-end}.charge{display:grid;place-items:center;width:24px;height:24px;border-radius:100%;background:conic-gradient(#77f0ff var(--fill),#344e55 var(--fill));color:#eff9f1;font-size:.82rem}.charge i{background:#16252a;border-radius:100%;width:19px;height:19px;text-align:center;font-style:normal}.charge.empty{color:#809a9f}
+#sound{position:absolute;z-index:3;bottom:max(12px,env(safe-area-inset-bottom));right:12px;background:#14252c;border:1px solid #e8ca8270;color:#ffe4aa;padding:7px 10px;font-size:.8rem}
+#notice{pointer-events:none;position:absolute;inset:27% 0 auto;text-align:center;text-shadow:0 4px 18px #06161d,0 2px 4px #0a1517;font-family:var(--serif);font-size:clamp(2rem,9vw,5.7rem);font-weight:900;color:#ffdf9d;line-height:1.15}
+#notice span{display:block;font:700 clamp(.85rem,3vw,1.2rem)/1.5 system-ui,sans-serif;letter-spacing:.13em;margin:.65em 8px}
+#caption{pointer-events:none;position:absolute;bottom:8%;text-align:center;width:100%;font-weight:700;color:#adebd9;text-shadow:0 2px 5px #000}
+#joystick{position:absolute;bottom:max(18px,env(safe-area-inset-bottom));left:18px;width:clamp(86px,22vw,115px);aspect-ratio:1;border:1px solid #e4d5a787;border-radius:50%;background:#14252c8c;display:grid;place-items:center;touch-action:none;user-select:none}
+#stick{width:43%;aspect-ratio:1;background:#f6d08b80;border:1px solid #f6d08b;border-radius:50%;pointer-events:none}
+#flash{pointer-events:none;background:#fff3d9;opacity:0}
+.float{position:absolute;pointer-events:none;color:#aaffdf;font:900 1.2rem var(--serif);text-shadow:0 2px 6px #04181e;white-space:nowrap}
+@media(pointer:coarse){.touch{display:inline}.desktop{display:none}#caption{bottom:20%}}
+@media(max-width:470px){#hud{left:7px;right:7px;gap:5px}.panel{padding:6px}.charge{width:19px;height:19px}.charge i{width:15px;height:15px}}
+@media(max-height:470px){.card{padding:12px 24px}h1{font-size:2rem}h1 br{display:none}.eyebrow,#description{margin:5px 0}#start{padding:6px;margin-top:5px}}
+
