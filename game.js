@@ -1,8 +1,9 @@
 import * as T from './vendor/three.module.min.js'
-import {RADIUS, REALMS, TYPES, Trial, goal, MAX_LEVEL, STAGE_DURATION} from './rules.js?v=2'
+import {RADIUS, REALMS, TYPES, Trial, goal, MAX_LEVEL, STAGE_DURATION} from './rules.js?v=3'
+import {drawEnding, endings} from './endings.js?v=3'
 
 const $ = id => document.getElementById(id)
-const ui = Object.fromEntries(['world','hud','phase','realm','hp','life','xp','level','experience','stageTime','next','charges','chargeTime','overlay','start','eyebrow','title','description','results','controls','notice','caption','joystick','stick','flash','sound'].map(id => [id,$(id)]))
+const ui = Object.fromEntries(['world','hud','phase','realm','hp','life','xp','level','experience','stageTime','next','charges','chargeTime','overlay','start','eyebrow','title','description','ending','endingArt','endingTitle','results','controls','notice','caption','joystick','stick','flash','sound'].map(id => [id,$(id)]))
 const clamp = T.MathUtils.clamp
 const tau = Math.PI * 2
 const colors = [0xfff2c9, 0x81ffa7, 0x66c8ff]
@@ -386,6 +387,8 @@ function start(){
   collectedAt=nextGather=nextTrail=0
   stormAmount=.18
   ui.overlay.hidden=true
+  ui.ending.hidden=true
+  ui.overlay.classList.remove('has-ending')
   ui.hud.hidden=true
   ui.joystick.hidden=true
   ui.start.blur()
@@ -399,9 +402,13 @@ function summary(){
   ui.overlay.hidden=false
   ui.eyebrow.textContent=died?'渡劫失敗':'渡劫中止'
   ui.title.textContent=died?'灰飛煙滅':'留得青山在'
-  ui.description.textContent=died
-    ? '再吸一顆就好。天雷說，烤番薯也是這麼想的。'
-    : '三十六計，走為上策。明天睡飽再渡！'
+  const [endingTitle, escapedLine, deathLine] = endings[trial.stage]
+  ui.endingTitle.textContent=endingTitle
+  ui.description.textContent=died?deathLine:escapedLine
+  drawEnding(ui.endingArt,trial.stage,died)
+  ui.ending.hidden=false
+  ui.overlay.classList.add('has-ending')
+  ui.overlay.scrollTop=0
   const seconds=Math.floor(trial.elapsed)
   const time=Math.floor(seconds/60)+' 分 '+seconds%60+' 秒'
   const rows=[['修仙境界',REALMS[trial.stage][0]],['最終等級','Lv.'+trial.level],

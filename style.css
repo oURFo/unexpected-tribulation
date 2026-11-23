@@ -34,3 +34,19 @@ progress{width:100%;height:5px;appearance:none;border:0;background:#ffffff25}pro
 .experience small{font-size:clamp(.64rem,1.8vw,.77rem);font-variant-numeric:tabular-nums}
 #xp{height:7px}
 #stageTime{font:800 clamp(.72rem,2.2vw,1rem) system-ui,sans-serif;font-variant-numeric:tabular-nums;color:var(--gold)}
+#overlay.has-ending{place-items:safe center;background:#0b161ec2}
+.has-ending .card{width:min(550px,100%);padding:clamp(14px,4vw,28px)}
+.has-ending h1{font-size:clamp(1.9rem,5.8vw,3.1rem);margin:.17em 0 .33em}
+.has-ending #description{margin:.6rem 0}
+#ending{position:relative;margin:0;border:1px solid #e8ca8280;background:#192d32}
+#endingArt{width:100%;height:auto;aspect-ratio:24/7}
+#endingTitle{position:absolute;left:39%;top:34%;width:36%;font:900 clamp(.9rem,2.7vw,1.35rem)/1.2 var(--serif);color:#ffe4aa;text-shadow:0 2px 6px #152126}
+.has-ending #results{grid-template-columns:repeat(auto-fit,minmax(83px,1fr));gap:5px}
+.has-ending #results div{font-size:.75rem;min-width:0}
+.has-ending #results b{font-size:.94rem}
+@media(max-height:500px) and (min-width:650px){
+  .has-ending .card{width:min(720px,100%);display:grid;grid-template-columns:1fr 1fr;gap:4px 14px;align-items:center}
+  .has-ending #ending,.has-ending #results{grid-column:2;grid-row:1 / span 3}
+  .has-ending #results{grid-row:4 / span 2;grid-template-columns:repeat(3,1fr)}
+  .has-ending .eyebrow,.has-ending h1,.has-ending #description,.has-ending #start,.has-ending #controls{grid-column:1}
+}

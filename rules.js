@@ -1,9 +1,9 @@
 export const RADIUS = 20
 export const BODY_RADIUS = 0.45
 export const REST = 5
-export const STAGE_DURATION = 30 * 60
+export const STAGE_DURATION = 30
 export const MAX_LEVEL = 15
-const ORBS_PER_BATCH = 10
+const ORBS_PER_BATCH = 12
 export const REALMS = [
   ['煉氣期', 3.5, 1.8, 2.5, 2.0],
   ['築基期', 3.3, 1.7, 2.3, 1.9],
@@ -26,7 +26,7 @@ export const TYPES = [
   { radius: 1.8, damage: 20, color: 0xa1e5ff },
   { radius: 2.6, damage: 12, color: 0xff69c6 },
 ]
-export const goal = level => Math.round(10 * 1.4 ** (level - 1)) * 10
+export const goal = level => 60 + 35 * (level - 1)
 
 export function pointInRing(min, max, random = Math.random) {
   const angle = random() * 2 * Math.PI
@@ -168,7 +168,7 @@ export class Trial {
         this.events.push({type:'collect', kind:orb.kind})
         continue
       }
-      orb.speed = Math.min(6, orb.speed + dt)
+      orb.speed = Math.min(8.5, orb.speed + 2.4 * dt)
       const fraction = Math.min(1, dt * orb.speed / distance)
       orb.x += x * fraction
       orb.z += z * fraction
@@ -223,7 +223,7 @@ export class Trial {
     this.collect(dt)
     if (this.phase === 'rest') {
       this.remaining -= dt
-      if (this.remaining <= 0) {
+      if (this.remaining <= 1e-7) {
         if (!this.completed) this.stage++
         this.beginStage()
       }
