@@ -4,6 +4,9 @@ export const REST = 5
 export const STAGE_DURATION = 30
 const LIGHTNING_DENSITY = 2.5
 export const MAX_LEVEL = 15
+export const SHIVER_LEVEL = 10
+export const SHIVER_DURATION = 2
+const SHIVER_COOLDOWN = 20
 const ORBS_PER_BATCH = 12
 const START_HP = 70
 const LEVEL_HP = 10
@@ -49,6 +52,7 @@ export class Trial {
     this.hp = this.maxHp = START_HP
     this.charges = 3
     this.chargeTime = 0
+    this.shiverTime = this.shiverCooldown = 0
     this.elapsed = this.age = this.hits = this.steps = 0
     this.x = this.z = this.dx = 0
     this.dz = 1
@@ -83,7 +87,7 @@ export class Trial {
   }
 
   flash(direction) {
-    if (!['trial', 'rest', 'practice'].includes(this.phase) || !this.charges || this.dash) return
+    if (!['trial', 'rest', 'practice'].includes(this.phase) || !this.charges || this.dash || this.shiverTime) return
     const [x, z] = direction ?? [this.dx, this.dz]
     const length = Math.hypot(x, z)
     if (!length) return
@@ -95,6 +99,16 @@ export class Trial {
     this.idle = 0
     this.meditating = false
     this.events.push({type:'dash', x:this.x, z:this.z})
+  }
+
+  shiver() {
+    if (!['trial','rest'].includes(this.phase) || this.level < SHIVER_LEVEL ||
+        this.shiverCooldown || this.dash) return
+    this.shiverTime = SHIVER_DURATION
+    this.shiverCooldown = SHIVER_COOLDOWN
+    this.idle = 0
+    this.meditating = false
+    this.events.push({type:'shiver', x:this.x, z:this.z})
   }
 
   finish(escaped) {
@@ -134,7 +148,7 @@ export class Trial {
     return positions
   }
 
-  strikes(dt, immune) {
+  strikes(dt, immune, shivering = false) {
     const row = REALMS[this.stage]
     this.timers.forEach((seconds, i) => {
       this.timers[i] -= dt
@@ -154,7 +168,9 @@ export class Trial {
       while (bolt.ticks < count && active >= bolt.ticks * .5) {
         bolt.ticks++
         this.events.push({type:'strike', bolt})
-        if (immune || Math.hypot(this.x-bolt.x,this.z-bolt.z) > type.radius + BODY_RADIUS) continue
+        if (Math.hypot(this.x-bolt.x,this.z-bolt.z) > type.radius + BODY_RADIUS) continue
+        if (shivering) this.events.push({type:'evade', x:this.x, z:this.z})
+        if (immune || shivering) continue
         const damage = type.damage + type.growth * (this.stage - (type.unlockStage ?? 0))
         this.hp = Math.max(0, this.hp - damage)
         this.hits++
@@ -177,6 +193,7 @@ export class Trial {
     while (this.level < MAX_LEVEL && this.xp >= goal(this.level)) {
       this.xp -= goal(this.level)
       this.level++
+      if (this.level === SHIVER_LEVEL) this.events.push({type:'shiverUnlocked', x:this.x, z:this.z})
       this.maxHp += LEVEL_HP
       this.hp += LEVEL_HP
     }
@@ -237,6 +254,9 @@ export class Trial {
     if (!practice) this.elapsed += dt
     const moving = Math.hypot(mx,mz)
     const immune = this.dash > 0
+    const shivering = this.shiverTime > 1e-7
+    this.shiverCooldown = Math.max(0, this.shiverCooldown - dt)
+    if (this.shiverCooldown < 1e-7) this.shiverCooldown = 0
     if (this.charges < 3) {
       this.chargeTime += dt
       if (this.chargeTime >= 10) {
@@ -252,7 +272,7 @@ export class Trial {
       this.x += this.dx * step
       this.z += this.dz * step
       this.dash = Math.max(0, this.dash - dt)
-    } else if (moving > 0) {
+    } else if (!shivering && moving > 0) {
       this.dx = mx / moving
       this.dz = mz / moving
       const speed = Math.min(10, 6 + .15 * (this.level - 1)) * (slowed ? .5 : 1)
@@ -269,9 +289,10 @@ export class Trial {
       return
     }
     this.meditationStagger = Math.max(0, this.meditationStagger - dt)
-    this.idle = moving || immune || this.meditationStagger ? 0 : this.idle + dt
+    this.idle = moving || immune || shivering || this.meditationStagger ? 0 : this.idle + dt
     this.meditating = this.idle >= .3
-    if (this.phase === 'trial') this.strikes(dt, immune)
+    if (this.phase === 'trial') this.strikes(dt, immune, shivering)
+    this.shiverTime = Math.max(0, this.shiverTime - dt)
     if (this.phase === 'dead') return
     this.collect(dt)
     if (practice) return

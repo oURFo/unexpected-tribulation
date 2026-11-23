@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#142328">
 <title>沒預料到我今天渡劫</title>
-<link rel="stylesheet" href="./style.css?v=6">
+<link rel="stylesheet" href="./style.css?v=8">
 </head>
 <body>
 <main id="game" aria-label="沒預料到我今天渡劫">
@@ -15,6 +15,11 @@
 <small id="lessonStep"></small>
 <h2 id="lessonTitle"></h2>
 <p id="lessonHint"></p>
+<ul id="orbLesson" hidden>
+<li><i class="orb-dot white"></i><span><b>白球</b>　+10 EXP</span></li>
+<li><i class="orb-dot green"></i><span><b>綠球</b>　回復 10 氣血</span></li>
+<li><i class="orb-dot blue"></i><span><b>藍球</b>　補 1 次閃身，滿了改給 5 EXP</span></li>
+</ul>
 </div>
 <button id="skipLesson" type="button">跳過教學</button>
 <button id="beginTrial" type="button" hidden>開始渡劫</button>
@@ -27,7 +32,7 @@
 <progress id="xp" aria-label="等級經驗"></progress>
 </section>
 <section class="panel realm"><small id="phase"></small><strong id="realm"></strong><time id="stageTime"></time><small id="next"></small></section>
-<section class="panel steps"><small>閃身步</small><div id="charges"></div><small id="chargeTime"></small></section>
+<section class="panel steps"><small>閃身步</small><div id="charges"></div><small id="chargeTime"></small><small id="shiverStatus" hidden></small></section>
 </header>
 <button id="sound" aria-label="切換音效" aria-pressed="true">音效開</button>
 <div id="notice" aria-live="polite"></div>
@@ -52,7 +57,7 @@
 </section>
 </main>
 <script type="module">
-import('./game.js?v=7').catch(error => {
+import('./game.js?v=8').catch(error => {
   console.error(error)
   document.querySelector('#description').textContent = '無法載入 3D 場景。請確認瀏覽器支援 WebGL，並重新整理。'
   document.querySelector('#start').textContent = '載入失敗'

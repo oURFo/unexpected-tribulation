@@ -1,9 +1,9 @@
 import * as T from './vendor/three.module.min.js'
-import {RADIUS, REALMS, TYPES, Trial, goal, MAX_LEVEL, STAGE_DURATION} from './rules.js?v=7'
+import {RADIUS, REALMS, TYPES, Trial, goal, MAX_LEVEL, STAGE_DURATION, SHIVER_LEVEL, SHIVER_DURATION} from './rules.js?v=8'
 import {drawEnding, endings} from './endings.js?v=3'
 
 const $ = id => document.getElementById(id)
-const ui = Object.fromEntries(['world','tutorial','lessonStep','lessonTitle','lessonHint','skipLesson','beginTrial','replayLesson','hud','phase','realm','hp','life','xp','level','experience','stageTime','next','charges','chargeTime','overlay','start','eyebrow','title','description','ending','endingArt','endingTitle','results','controls','notice','caption','panic','joystick','stick','flash','sound'].map(id => [id,$(id)]))
+const ui = Object.fromEntries(['world','tutorial','lessonStep','lessonTitle','lessonHint','orbLesson','skipLesson','beginTrial','replayLesson','hud','phase','realm','hp','life','xp','level','experience','stageTime','next','charges','chargeTime','shiverStatus','overlay','start','eyebrow','title','description','ending','endingArt','endingTitle','results','controls','notice','caption','panic','joystick','stick','flash','sound'].map(id => [id,$(id)]))
 const clamp = T.MathUtils.clamp
 const tau = Math.PI * 2
 const colors = [0xfff2c9, 0x81ffa7, 0x66c8ff]
@@ -13,9 +13,9 @@ let lessonSeen = false
 try { lessonSeen = localStorage.getItem(lessonStorageKey) === 'done' } catch {}
 const lessons = [
   ['先動起來', '用 W、A、S、D 走幾步。', '拖動左下角的搖桿，走幾步試試。'],
-  ['停下打坐', '放開移動鍵，原地停一下，把靈氣球吸入體內。', '放開搖桿，原地停一下，把靈氣球吸入體內。'],
+  ['停下打坐', '放開移動鍵，等白、綠、藍三顆球飛入體內。球入體才有收益。', '放開搖桿，等白、綠、藍三顆球飛入體內。球入體才有收益。'],
   ['用閃身步躲雷', '按空白鍵，朝角色面向閃身。閃身途中免疫雷擊，次數會慢慢補回。', '用手指在搖桿以外的場地滑一下，角色會朝滑動方向閃身。閃身途中免疫雷擊。'],
-  ['準備好了，天雷來了！', '看到地上縮小的雷圈就離開。白球加經驗、綠球補血、藍球補閃身。撐不住就跑出大陣結算。'],
+  ['準備好了，天雷來了！', '看到地上縮小的雷圈就離開。撐不住就跑出大陣結算。'],
 ]
 let lesson = 0
 let shownLesson = -1
@@ -218,6 +218,8 @@ const faceColors=[]
 puppet.traverse(obj=>{if(obj.isMesh)faceColors.push([obj.material,obj.material.color.clone()])})
 const aura = flatRing(.73,.85,0x8fffd2,.7)
 scene.add(aura)
+const shiverAura=flatRing(.95,1.12,0x92fbff,.84)
+scene.add(shiverAura)
 
 function instances(geometry, capacity) {
   const mesh = new T.InstancedMesh(geometry,new T.MeshBasicMaterial(),capacity)
@@ -284,6 +286,8 @@ let nextGather=0
 let lastWarning=-1
 let lastChime=-1
 let lastThunder=-1
+let lastEvade=-Infinity
+let lastTap=null
 let chatterUntil=0
 let nextChatter=0
 let lastLine=-1
@@ -399,12 +403,12 @@ function setNotice(main,detail=''){
   ui.notice.append(sub)
 }
 
-function label(x,z,text){
+function label(x,z,text,style='',duration=1){
   const element=document.createElement('div')
-  element.className='float'
+  element.className=style?'float '+style:'float'
   element.textContent=text
   $('game').append(element)
-  labels.push({element,x,z,time:now})
+  labels.push({element,x,z,time:now,duration})
 }
 
 function consumeEvents(){
@@ -430,6 +434,15 @@ function consumeEvents(){
       shake=.3
       sound('hurt')
       label(trial.x,trial.z,'⚡ −'+event.damage+' 氣血')
+    } else if(event.type==='shiverUnlocked'){
+      label(event.x,event.z,'解鎖・狗熊哆嗦毛','skill-float',2)
+      sound('breakthrough')
+    } else if(event.type==='shiver'){
+      label(event.x,event.z,'狗熊哆嗦毛！','skill-float',SHIVER_DURATION)
+      yelp(2)
+    } else if(event.type==='evade'&&now-lastEvade>.18){
+      label(event.x,event.z,'閃躲','evade-float')
+      lastEvade=now
     } else if(event.type==='dash'){
       label(event.x,event.z,'閃身步')
       sound('dash')
@@ -464,6 +477,7 @@ function start(forceLesson=false){
   flare=scorch=endTimer=0
   collectedAt=nextGather=nextTrail=nextChatter=chatterUntil=0
   lastLine=-1
+  lastEvade=-Infinity
   ui.panic.hidden=true
   stormAmount=.18
   ui.overlay.hidden=true
@@ -499,7 +513,7 @@ function updateLesson() {
       return {x:trial.x+1.7*Math.cos(angle),z:trial.z+1.7*Math.sin(angle),kind,speed:0,intake:0}
     })
   }
-  if (lesson===1 && trial.xp>0) lesson=2
+  if (lesson===1 && trial.orbs.length===0) lesson=2
   if (lesson===2 && trial.steps>0 && !trial.dash) lesson=3
   if (shownLesson===lesson && lessonTouch===coarse.matches) return
   shownLesson=lesson
@@ -507,6 +521,7 @@ function updateLesson() {
   const [title, desktopHint, touchHint=desktopHint]=lessons[lesson]
   ui.lessonStep.textContent=lesson<3?'渡劫練習 '+(lesson+1)+' / 3':'練習完成'
   ui.lessonTitle.textContent=title
+  ui.orbLesson.hidden=lesson===0
   ui.lessonHint.textContent=lessonTouch?touchHint:desktopHint
   ui.skipLesson.hidden=lesson===3
   ui.beginTrial.hidden=lesson!==3
@@ -543,7 +558,7 @@ function summary(){
 }
 
 function hud(){
-  const {phase,stage,level,xp,hp,maxHp,charges,chargeTime,completed,remaining,age}=trial
+  const {phase,stage,level,xp,hp,maxHp,charges,chargeTime,completed,remaining,age,shiverTime,shiverCooldown}=trial
   const active=phase==='trial'||phase==='rest'
   const practice=phase==='practice'
   ui.tutorial.hidden=!practice
@@ -563,7 +578,13 @@ function hud(){
   } else if(ending){
     setNotice(phase==='dead'?'灰飛煙滅':'留得青山在')
   } else setNotice('')
-  ui.caption.textContent=!(active||practice)?'':trial.meditating?'打坐聚靈中':trial.dash>0?'閃身免疫雷擊':trial.meditationStagger>0?'打坐被雷擊中斷':''
+  ui.shiverStatus.hidden=!active||level<SHIVER_LEVEL
+  if(!ui.shiverStatus.hidden){
+    const input=coarse.matches?'雙擊場地':'C'
+    const status=shiverTime>1e-7?'閃躲 '+shiverTime.toFixed(1)+' 秒':shiverCooldown>0?'冷卻 '+Math.ceil(shiverCooldown)+' 秒':'就緒'
+    ui.shiverStatus.textContent='狗熊哆嗦毛 · '+input+' · '+status
+  }
+  ui.caption.textContent=!(active||practice)?'':shiverTime>1e-7?'狗熊哆嗦毛！':trial.meditating?'打坐聚靈中':trial.dash>0?'閃身免疫雷擊':trial.meditationStagger>0?'打坐被雷擊中斷':''
   if(!active&&!ending)return
   const seconds = Math.max(0,Math.ceil(STAGE_DURATION-age-1e-7))
   const restSeconds = Math.ceil(remaining ?? 0)
@@ -619,10 +640,11 @@ function draw(dt, moveAmount){
   const ending=phase==='dead'||phase==='escaped'
   const escape=phase==='escaped'?Math.max(0,1.5-endTimer):0
   avatar.position.set(x+trial.dx*escape*1.15,asleep?.46:trial.meditating?.16+.09*Math.sin(now*4):0,z+trial.dz*escape*1.15)
-  const running = (phase==='trial'||phase==='rest'||phase==='practice') && moveAmount>.08 && !trial.dash
+  const shivering=trial.shiverTime>1e-7
+  const running = (phase==='trial'||phase==='rest'||phase==='practice') && moveAmount>.08 && !trial.dash && !shivering
   const flailing = running || (phase==='escaped'&&endTimer>0)
   const stride = now*22
-  const startled = excited || flailing
+  const startled = excited || flailing || shivering
   avatar.rotation.y=Math.atan2(trial.dx,trial.dz)
   puppet.rotation.set(asleep?-1.45:excited?-.18:flailing?.23:0,0,flailing?.18*Math.sin(stride*.68):0)
   puppet.position.y=excited?Math.max(0,.65*Math.sin((1.75-remaining)*6)):flailing?.15*Math.abs(Math.sin(stride)):0
@@ -650,6 +672,22 @@ function draw(dt, moveAmount){
     s.rotation.x=trial.meditating?-.9:flailing?-.55+.76*Math.sin(stride*.82+i*2.8):0
     s.rotation.z=side*(startled?1.04+.42*Math.sin(stride+i*1.5):.25)
   })
+  if(shivering){
+    const shake=Math.sin(now*56)
+    const shimmy=Math.cos(now*47)
+    puppet.position.y=.08+.14*Math.abs(shake)
+    puppet.rotation.set(-.16+.11*shimmy,shake*.27,shimmy*.26)
+    face.rotation.z=shake*.24
+    hat.rotation.z=shimmy*.32
+    sleeves.forEach((s,i)=>{
+      s.rotation.x=-.7+shake*.52
+      s.rotation.z=(i===0?-1:1)*(1.1+.56*shimmy)
+    })
+    feet.forEach((foot,i)=>foot.rotation.y=(i===0?1:-1)*(.35+.14*shake))
+  }
+  shiverAura.visible=shivering
+  shiverAura.position.set(x,.13,z)
+  shiverAura.scale.setScalar(1.12+.22*Math.sin(now*22))
   robe.position.y=trial.meditating?.72:.89
   belt.position.y=trial.meditating?.64:.79
   shadow.visible=avatar.visible
@@ -737,14 +775,14 @@ function draw(dt, moveAmount){
   for(let i=labels.length-1;i>=0;i--){
     const label=labels[i]
     const age=now-label.time
-    if(age>=1){
+    if(age>=label.duration){
       label.element.remove()
       labels.splice(i,1)
       continue
     }
-    projected.set(label.x,2.25+age*1.65,label.z).project(camera)
+    projected.set(label.x,2.25+age*1.65/label.duration,label.z).project(camera)
     label.element.style.transform='translate('+((projected.x+1)*innerWidth/2)+'px,'+((1-projected.y)*innerHeight/2)+'px) translateX(-50%)'
-    label.element.style.opacity=1-age
+    label.element.style.opacity=Math.min(1,(label.duration-age)*2)
   }
   renderer.render(scene,camera)
 }
@@ -763,6 +801,7 @@ function clearInput(){
   keys.clear()
   movePointer=null
   touchMoves.clear()
+  lastTap=null
   joystick.x=joystick.y=0
   ui.stick.style.transform=''
 }
@@ -773,6 +812,7 @@ addEventListener('keydown',event=>{
     event.preventDefault()
     if(!event.repeat)useFlash()
   }
+  if(event.code==='KeyC'&&!event.repeat)trial.shiver()
   if(['KeyW','KeyA','KeyS','KeyD'].includes(event.code))keys.add(event.code)
 })
 addEventListener('keyup',event=>keys.delete(event.code))
@@ -804,20 +844,38 @@ for(const name of ['pointerup','pointercancel','lostpointercapture']){
     joystick.x=joystick.y=0
     ui.stick.style.transform=''
   })
-  ui.world.addEventListener(name,event=>touchMoves.delete(event.pointerId))
+  if(name!=='pointerup')ui.world.addEventListener(name,event=>touchMoves.delete(event.pointerId))
 }
 ui.world.addEventListener('pointerdown',event=>{
   if(event.pointerType==='mouse'||!ui.overlay.hidden)return
   ui.world.setPointerCapture(event.pointerId)
-  touchMoves.set(event.pointerId,[event.clientX,event.clientY])
+  if(touchMoves.size)lastTap=null
+  touchMoves.set(event.pointerId,{x:event.clientX,y:event.clientY,time:event.timeStamp})
 })
 ui.world.addEventListener('pointermove',event=>{
   const origin=touchMoves.get(event.pointerId)
   if(!origin)return
-  const x=event.clientX-origin[0],y=event.clientY-origin[1]
+  const x=event.clientX-origin.x,y=event.clientY-origin.y
   if(Math.hypot(x,y)<25)return
   touchMoves.delete(event.pointerId)
+  lastTap=null
   useFlash([x,y/.8])
+})
+ui.world.addEventListener('pointerup',event=>{
+  const origin=touchMoves.get(event.pointerId)
+  touchMoves.delete(event.pointerId)
+  if(!origin)return
+  const tap={x:event.clientX,y:event.clientY,time:event.timeStamp}
+  if(touchMoves.size || tap.time-origin.time>250 || Math.hypot(tap.x-origin.x,tap.y-origin.y)>17){
+    lastTap=null
+    return
+  }
+  if(lastTap && tap.time-lastTap.time<=320 && Math.hypot(tap.x-lastTap.x,tap.y-lastTap.y)<=42){
+    lastTap=null
+    trial.shiver()
+    return
+  }
+  lastTap=tap
 })
 ui.sound.addEventListener('click',()=>{
   soundOn=!soundOn

@@ -62,3 +62,10 @@ progress{width:100%;height:5px;appearance:none;border:0;background:#ffffff25}pro
 #tutorial button:focus-visible,#replayLesson:focus-visible{outline:3px solid #6bf4e7;outline-offset:3px}
 #replayLesson{width:100%;margin-top:6px}
 @media(max-height:500px) and (min-width:650px){.has-ending #replayLesson{grid-column:1}}
+#orbLesson{list-style:none;margin:.5rem 0 0;padding:0;display:grid;gap:4px;color:#f4ebd5;font-size:clamp(.78rem,2.3vw,.88rem)}
+#orbLesson li{display:flex;align-items:center;gap:8px}
+.orb-dot{display:inline-block;border-radius:50%;width:9px;height:9px;flex:none;background:currentColor;box-shadow:0 0 7px currentColor}
+.orb-dot.white{color:#fff2c9}.orb-dot.green{color:#81ffa7}.orb-dot.blue{color:#66c8ff}
+.steps #shiverStatus{color:#95f6ff;border-top:1px solid #76dbdf55;padding-top:5px;line-height:1.38}
+.skill-float,.evade-float{color:#96fcff;text-shadow:0 2px 5px #071a2a,0 0 12px #36bde999}
+.skill-float{font-size:clamp(1rem,3.5vw,1.55rem)}
