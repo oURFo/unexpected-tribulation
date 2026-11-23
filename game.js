@@ -13,9 +13,9 @@ const lessonStorageKey = 'unexpected-tribulation-tutorial-v1'
 let lessonSeen = false
 try { lessonSeen = localStorage.getItem(lessonStorageKey) === 'done' } catch {}
 const lessons = [
-  ['先動起來', '用 W、A、S、D 走幾步。', '拖動左下角的搖桿，走幾步試試。'],
-  ['停下打坐', '放開移動鍵，等白、綠、藍三顆球飛入體內。球入體才有收益。', '放開搖桿，等白、綠、藍三顆球飛入體內。球入體才有收益。'],
-  ['用閃身步躲雷', '按空白鍵，朝角色面向閃身。閃身途中免疫雷擊，次數會慢慢補回。', '用手指在搖桿以外的場地滑一下，角色會朝滑動方向閃身。閃身途中免疫雷擊。'],
+  ['先動起來', '用 W、A、S、D 走幾步。', '按住畫面左下四分之一，浮動搖桿就會出現。拖曳走幾步試試。'],
+  ['停下打坐', '放開移動鍵，等白、綠、藍三顆球飛入體內。球入體才有收益。', '放開移動的手指，等白、綠、藍三顆球飛入體內。球入體才有收益。'],
+  ['用閃身步躲雷', '按空白鍵，朝角色面向閃身。閃身途中免疫雷擊，次數會慢慢補回。', '從左下四分之一以外的場地開始滑動。角色會朝滑動方向閃身，途中免疫雷擊。'],
   ['準備好了，天雷來了！', '注意逐漸縮小的地面雷圈，落雷前跑出警示範圍。'],
 ]
 let lesson = 0
@@ -680,7 +680,6 @@ function hud(){
   if(practice)updateLesson()
   const ending=(phase==='dead'||phase==='escaped')&&ui.overlay.hidden
   ui.hud.hidden=!(active||ending)
-  ui.joystick.hidden=!((active||practice)&&coarse.matches)
   const name=REALMS[stage][0]
   const next=REALMS[stage+1]?.[0]
   const upcoming=next??'大羅金仙'
@@ -916,15 +915,16 @@ function resize(){
   camera.updateProjectionMatrix()
   renderer.setSize(innerWidth,innerHeight)
 }
-addEventListener('resize',resize)
+addEventListener('resize',()=>{
+  resize()
+  clearInput()
+})
 resize()
 function clearInput(){
   keys.clear()
-  movePointer=null
+  releaseStick()
   touchMoves.clear()
   lastTap=null
-  joystick.x=joystick.y=0
-  ui.stick.style.transform=''
 }
 
 addEventListener('keydown',event=>{
@@ -939,41 +939,43 @@ addEventListener('keydown',event=>{
 addEventListener('keyup',event=>keys.delete(event.code))
 addEventListener('blur',clearInput)
 document.addEventListener('visibilitychange',clearInput)
-function moveStick(event){
-  const box=ui.joystick.getBoundingClientRect()
-  const r=box.width*.39
-  const x=event.clientX-box.left-box.width/2
-  const y=event.clientY-box.top-box.height/2
-  const length=Math.max(r,Math.hypot(x,y))
-  joystick.x=Math.abs(x)<4?0:x/length
-  joystick.y=Math.abs(y)<4?0:y/length
-  ui.stick.style.transform='translate('+(joystick.x*r)+'px,'+(joystick.y*r)+'px)'
+function releaseStick(){
+  movePointer=null
+  joystick.x=joystick.y=0
+  ui.stick.style.transform=''
+  ui.joystick.hidden=true
 }
-ui.joystick.addEventListener('pointerdown',event=>{
-  if(movePointer!==null)return
-  movePointer=event.pointerId
-  ui.joystick.setPointerCapture(movePointer)
-  moveStick(event)
-})
-ui.joystick.addEventListener('pointermove',event=>{
-  if(event.pointerId===movePointer)moveStick(event)
-})
-for(const name of ['pointerup','pointercancel','lostpointercapture']){
-  ui.joystick.addEventListener(name,event=>{
-    if(event.pointerId!==movePointer)return
-    movePointer=null
-    joystick.x=joystick.y=0
-    ui.stick.style.transform=''
-  })
-  if(name!=='pointerup')ui.world.addEventListener(name,event=>touchMoves.delete(event.pointerId))
-}
+
 ui.world.addEventListener('pointerdown',event=>{
-  if(event.pointerType==='mouse'||!ui.overlay.hidden)return
+  if(event.pointerType==='mouse'||!['practice','trial','rest'].includes(trial.phase)||ui.skillIntro.open)return
+  const x=event.clientX,y=event.clientY
+  const lowerLeft=x<innerWidth/2&&y>=innerHeight/2
+  if(lowerLeft){
+    if(movePointer)return
+    ui.world.setPointerCapture(event.pointerId)
+    ui.joystick.hidden=false
+    const edge=ui.joystick.offsetWidth/2
+    // Keep the ring visible near an edge without changing the movement origin.
+    ui.joystick.style.left=clamp(x,edge,innerWidth/2-edge)+'px'
+    ui.joystick.style.top=clamp(y,innerHeight/2+edge,innerHeight-edge)+'px'
+    movePointer={id:event.pointerId,x,y,range:edge*.56}
+    return
+  }
   ui.world.setPointerCapture(event.pointerId)
   if(touchMoves.size)lastTap=null
-  touchMoves.set(event.pointerId,{x:event.clientX,y:event.clientY,time:event.timeStamp})
+  touchMoves.set(event.pointerId,{x,y,time:event.timeStamp})
 })
 ui.world.addEventListener('pointermove',event=>{
+  if(event.pointerId===movePointer?.id){
+    const x=event.clientX-movePointer.x,y=event.clientY-movePointer.y
+    const distance=Math.hypot(x,y)
+    const range=movePointer.range
+    const strength=clamp((distance-4)/(range-4),0,1)
+    joystick.x=distance?x/distance*strength:0
+    joystick.y=distance?y/distance*strength:0
+    ui.stick.style.transform='translate('+(joystick.x*range)+'px,'+(joystick.y*range)+'px)'
+    return
+  }
   const origin=touchMoves.get(event.pointerId)
   if(!origin)return
   const x=event.clientX-origin.x,y=event.clientY-origin.y
@@ -983,6 +985,10 @@ ui.world.addEventListener('pointermove',event=>{
   useFlash([x,y/.8])
 })
 ui.world.addEventListener('pointerup',event=>{
+  if(event.pointerId===movePointer?.id){
+    releaseStick()
+    return
+  }
   const origin=touchMoves.get(event.pointerId)
   touchMoves.delete(event.pointerId)
   if(!origin)return
@@ -998,6 +1004,12 @@ ui.world.addEventListener('pointerup',event=>{
   }
   lastTap=tap
 })
+for(const name of ['pointercancel','lostpointercapture']){
+  ui.world.addEventListener(name,event=>{
+    if(event.pointerId===movePointer?.id)releaseStick()
+    if(touchMoves.delete(event.pointerId))lastTap=null
+  })
+}
 ui.sound.addEventListener('click',()=>{
   soundOn=!soundOn
   ui.sound.textContent=soundOn?'音效開':'音效關'
