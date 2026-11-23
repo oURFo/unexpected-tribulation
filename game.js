@@ -1,5 +1,5 @@
 import * as T from './vendor/three.module.min.js'
-import {RADIUS, REALMS, TYPES, Trial, goal, MAX_LEVEL, STAGE_DURATION} from './rules.js?v=6'
+import {RADIUS, REALMS, TYPES, Trial, goal, MAX_LEVEL, STAGE_DURATION} from './rules.js?v=7'
 import {drawEnding, endings} from './endings.js?v=3'
 
 const $ = id => document.getElementById(id)
@@ -251,8 +251,8 @@ orbHalo.count=0
 orbHalo.frustumCulled=false
 orbHalo.instanceMatrix.setUsage(T.DynamicDrawUsage)
 scene.add(orbHalo)
-const rings=instances(new T.RingGeometry(.94,1,64),64)
-const pools=instances(new T.CircleGeometry(1,40),40)
+const rings=instances(new T.RingGeometry(.94,1,64),80)
+const pools=instances(new T.CircleGeometry(1,40),48)
 pools.material.transparent=true
 pools.material.opacity=.24
 pools.material.depthWrite=false

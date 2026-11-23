@@ -2,6 +2,7 @@ export const RADIUS = 20
 export const BODY_RADIUS = 0.45
 export const REST = 5
 export const STAGE_DURATION = 30
+const LIGHTNING_DENSITY = 2.5
 export const MAX_LEVEL = 15
 const ORBS_PER_BATCH = 12
 const START_HP = 70
@@ -68,7 +69,8 @@ export class Trial {
   beginStage() {
     this.phase = 'trial'
     this.age = 0
-    this.timers = TYPES.map((_, i) => REALMS[this.stage][1 + 2 * i] ?? Infinity)
+    this.intervals = TYPES.map((_, i) => (REALMS[this.stage][1 + 2 * i] ?? Infinity) / LIGHTNING_DENSITY)
+    this.timers = [...this.intervals]
     if (this.orbs.length === 0) this.refill()
   }
 
@@ -137,7 +139,7 @@ export class Trial {
     this.timers.forEach((seconds, i) => {
       this.timers[i] -= dt
       if (seconds > dt) return
-      this.timers[i] += row[1 + i * 2]
+      this.timers[i] += this.intervals[i]
       const positions = i === 1 ? this.randomWave() : [[this.x, this.z]]
       for (const [x, z] of positions) {
         this.bolts.push({x,z,kind:i, warning:row[2 + i * 2], age:0, ticks:0})
